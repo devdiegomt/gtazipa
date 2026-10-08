@@ -13,37 +13,85 @@ html, body {
 }
 #title { font-weight: 800; font-size: 22px; letter-spacing: 3px; }
 #title span { font-weight: 400; font-size: 12px; letter-spacing: 1px; opacity: 0.85; margin-left: 6px; }
-#stats { font: 12px/1.45 ui-monospace, Consolas, monospace; margin-top: 6px; white-space: pre; }
+/* datos de depuración: ocultos salvo F3, la opción del menú o ?debug */
+#stats { font: 12px/1.45 ui-monospace, Consolas, monospace; margin-top: 6px; white-space: pre; display: none; }
+body.debug #stats { display: block; }
 #minimap {
   position: fixed; right: 14px; top: 14px; width: 220px; height: 220px;
   border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.85);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45); background: #3b3a35;
 }
+/* pie: barra de ayuda centrada y, debajo, los créditos de datos (en columna: no pueden solaparse) */
+#footer {
+  position: fixed; left: 10px; right: 10px; bottom: 5px; display: flex; flex-direction: column; align-items: center;
+  gap: 5px; pointer-events: none;
+}
 #help {
-  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
   font-size: 12px; background: rgba(0, 0, 0, 0.45); padding: 6px 12px; border-radius: 14px;
-  pointer-events: none; white-space: nowrap;
+  white-space: nowrap; max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis;
 }
 #attribution {
-  position: fixed; right: 10px; bottom: 6px; font-size: 9px; opacity: 0.8; max-width: 46vw; text-align: right;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); pointer-events: none;
+  align-self: flex-end; font-size: 9px; opacity: 0.8; max-width: 100%; text-align: right;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 #loading {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
   background: #2c3440; font-size: 20px; letter-spacing: 2px; transition: opacity 0.4s;
 }
 #loading.hidden { opacity: 0; pointer-events: none; }
-body.capture #help, body.capture #hud #stats { display: none; }
+body.capture #help, body.capture #hud #stats, body.capture #pause { display: none; }
 #speedo {
-  position: fixed; right: 24px; bottom: 44px; display: none; font: 800 46px/1 system-ui, sans-serif;
+  position: fixed; right: 24px; bottom: 64px; display: none; font: 800 46px/1 system-ui, sans-serif;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7); text-align: right; pointer-events: none;
 }
 #speedo span { display: block; font-size: 13px; font-weight: 600; letter-spacing: 2px; opacity: 0.85; }
 #prompt {
-  position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); display: none;
+  position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); display: none;
   background: rgba(0, 0, 0, 0.6); padding: 8px 16px; border-radius: 8px; font-size: 15px; font-weight: 600;
   pointer-events: none;
 }
 #speedo .rpm { width: 170px; height: 6px; margin: 6px 0 4px auto; background: rgba(0, 0, 0, 0.45); border-radius: 3px; overflow: hidden; }
 #speedo .rpm i { display: block; height: 100%; }
 #speedo span + span { margin-top: 2px; font-size: 11px; letter-spacing: 1px; }
+
+/* ---------------- menú de pausa */
+#pause {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(20, 24, 30, 0.55); backdrop-filter: blur(3px);
+}
+#pause[hidden] { display: none; }
+#pause .panel {
+  display: grid; grid-template-columns: 170px 1fr; grid-template-rows: auto 1fr; gap: 14px 22px;
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; box-sizing: border-box;
+  min-height: min(470px, calc(100vh - 32px));   /* igual en las dos pestañas: el panel no salta */
+  padding: 20px 24px 24px; background: rgba(0, 0, 0, 0.62); border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+#pause h2 { grid-column: 1 / -1; margin: 0; font-weight: 800; font-size: 22px; letter-spacing: 3px; }
+#pause nav { display: flex; flex-direction: column; gap: 8px; }
+#pause button {
+  font: 600 14px system-ui, sans-serif; color: #fff; text-align: left; cursor: pointer;
+  padding: 9px 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.07);
+}
+#pause button:hover, #pause button:focus-visible { background: rgba(255, 255, 255, 0.18); outline: none; }
+#pause button.on { border-color: #f2c200; color: #f2c200; }
+#pause button.primary { background: #a2523a; border-color: #c46a50; }
+#pause button.primary:hover, #pause button.primary:focus-visible { background: #b8603f; }
+#pause section { font-size: 14px; min-width: 0; }
+#pause label { display: block; margin: 0 0 14px; }
+#pause label.range output { float: right; font: 12px ui-monospace, Consolas, monospace; opacity: 0.85; }
+#pause input[type="range"] { display: block; width: 100%; margin: 6px 0 0; accent-color: #f2c200; }
+#pause input[type="checkbox"] { accent-color: #f2c200; margin: 0 6px 0 0; vertical-align: -2px; }
+#pause kbd, #pause dt {
+  font: 600 11px ui-monospace, Consolas, monospace; background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; padding: 1px 6px;
+}
+#pause h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: 0.7; }
+#pause h3 ~ h3 { margin-top: 14px; }
+#pause dl { display: grid; grid-template-columns: max-content 1fr; gap: 5px 12px; margin: 0; align-items: center; }
+#pause dt { justify-self: start; }
+#pause dd { margin: 0; opacity: 0.9; }
+@media (max-width: 560px) {
+  #pause .panel { grid-template-columns: 1fr; }
+  #pause nav { flex-direction: row; flex-wrap: wrap; }
+}

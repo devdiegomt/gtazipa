@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { Physics } from './physics';
+import { GROUP, groups, Physics } from './physics';
 import { Heightfield, buildTerrainMesh } from './world/terrain';
 import { loadBuildings } from './world/buildings';
 import { buildProps } from './world/props';
@@ -8,12 +8,15 @@ import { Avatar } from './player/avatar';
 import { OrbitCamera } from './camera';
 import { Input } from './input';
 import { Minimap } from './ui/minimap';
+import { PauseMenu } from './ui/pause';
+import { loadSettings, saveSettings } from './settings';
+import { ViewTest } from './visibility';
 import { buildSky } from './world/sky';
 import { loadCatedral } from './world/catedral';
 import { buildPlaza } from './world/plaza';
 import { buildPark, type ParkResult } from './world/parks';
 import parksCfg from './data/parques.json';
-import { TrafficSim, type TrafficCfg, type Obstacle } from './traffic/sim';
+import { TrafficSim, type TrafficCfg, type Obstacle, type Visibility } from './traffic/sim';
 import { TrafficView, SignalsView, loadRoads } from './traffic/render';
 import type { RoadGraph } from './traffic/graph';
 import traficoCfg from './data/trafico.json';
@@ -30,6 +33,7 @@ import playerCfg from './data/player.json';
 const WORLD = `${import.meta.env.BASE_URL}world/`;
 const params = new URLSearchParams(location.search);
 const CAPTURE = params.get('capture'); // N | E | S | W: vista fija desde la plaza para capturas
+const DEBUG = params.has('debug');      // datos de depuración siempre visibles
 
 declare global {
   interface Window { __zipa?: Record<string, unknown> }
@@ -44,6 +48,10 @@ async function fetchJSON<T>(name: string): Promise<T> {
 async function main() {
   const loading = document.getElementById('loading')!;
   if (CAPTURE) document.body.classList.add('capture');
+  // opciones del jugador (las capturas usan siempre los valores por defecto)
+  let settings = loadSettings();
+  document.body.classList.toggle('debug', DEBUG || settings.debugHud);
+  let fov0 = CAPTURE ? playerCfg.camera.fov : settings.fov;
 
   // ---------------- render (WebGPU con fallback automático a WebGL2)
   const renderer = new THREE.WebGPURenderer({ antialias: true, forceWebGL: params.has('webgl') });
@@ -54,7 +62,7 @@ async function main() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 0.85;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;   // WebGPURenderer ya no admite PCFSoftShadowMap
   document.getElementById('app')!.appendChild(renderer.domElement);
 
   const r = worldCfg.render;
@@ -63,7 +71,7 @@ async function main() {
   scene.fog = new THREE.Fog(r.sky, r.fogNear, r.fogFar);
   const sky = buildSky(r.sky);
   scene.add(sky);
-  const camera = new THREE.PerspectiveCamera(playerCfg.camera.fov, innerWidth / innerHeight, 0.1, 2000);
+  const camera = new THREE.PerspectiveCamera(fov0, innerWidth / innerHeight, 0.1, 2000);
 
   const hemi = new THREE.HemisphereLight('#d6e4f2', '#5e5444', 0.9);
   scene.add(hemi);
@@ -138,7 +146,8 @@ async function main() {
   const surfaces = new SurfaceMap(roads, meta.plaza.paved);
   const moto = new MotoController(phys, spot.x, hf.heightAt(spot.x, spot.z) + 0.3, spot.z, spot.yaw, surfaces, atm);
 
-  // ---------------- tráfico: simulación pura + un cuerpo cinemático por vehículo (colisiona con jugador y moto)
+  // ---------------- tráfico: simulación pura + un cuerpo cinemático por vehículo (colisiona con jugador y moto;
+  // grupo VEHICLE: la cámara y el rayo de visibilidad no lo ven). Los inactivos tienen el collider apagado.
   const traffic = new TrafficSim(roadGraph, traficoCfg.traffic as unknown as TrafficCfg, traficoCfg.signals, 11, meta.area.half,
     { x: spawn.x, z: spawn.z });
   const trafficView = new TrafficView(traffic, (x, z) => hf.heightAt(x, z));
@@ -148,8 +157,23 @@ async function main() {
   const vehBodies = traffic.vehicles.map((v) => {
     const h = TrafficView.height(v.type);
     const body = phys.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(v.x, hf.heightAt(v.x, v.z) + h / 2, v.z));
-    phys.world.createCollider(R.ColliderDesc.cuboid(v.width / 2, h / 2, v.length / 2), body);
-    return { body, h };
+    const collider = phys.world.createCollider(
+      R.ColliderDesc.cuboid(v.width / 2, h / 2, v.length / 2).setCollisionGroups(groups(GROUP.VEHICLE)), body);
+    collider.setEnabled(v.active);
+    return { body, collider, h, on: v.active };
+  });
+  const kPos = { x: 0, y: 0, z: 0 }, kRot = { x: 0, y: 0, z: 0, w: 1 };
+  /** Lleva los cuerpos cinemáticos a la pose del tráfico; al aparecer o reciclarse se teletransportan (sin barrido). */
+  const syncVehicleBodies = () => traffic.vehicles.forEach((v, i) => {
+    const vb = vehBodies[i];
+    const flip = v.active !== vb.on;
+    if (flip) { vb.on = v.active; vb.collider.setEnabled(v.active); }
+    if (!v.active && !flip) return;
+    const yaw = Math.atan2(-v.tx, -v.tz);
+    kPos.x = v.x; kPos.y = v.active ? hf.heightAt(v.x, v.z) + vb.h / 2 : -1000; kPos.z = v.z;
+    kRot.y = Math.sin(yaw / 2); kRot.w = Math.cos(yaw / 2);
+    if (flip) { vb.body.setTranslation(kPos, true); vb.body.setRotation(kRot, true); }
+    else { vb.body.setNextKinematicTranslation(kPos); vb.body.setNextKinematicRotation(kRot); }
   });
   const obstacles: Obstacle[] = [];
   // El tráfico se simula a 30 Hz (mitad del paso de física); el render interpola entre pasos.
@@ -249,6 +273,34 @@ async function main() {
     document.getElementById('minimap') as HTMLCanvasElement, roads, meta,
     bmeta.map((b) => [b.c[0], b.c[1], b.area] as [number, number, number]),
   );
+  // puntos del minimapa reutilizados (sólo vehículos activos)
+  const vehDots = traffic.vehicles.map((v) => ({ x: 0, z: 0, color: v.type === 'taxi' ? '#ffd21a' : '#e8e8e8' }));
+  const dots: typeof vehDots = [];
+
+  // El tráfico aparece y se recicla sólo donde la cámara no ve (frustum + niebla + rayo de oclusión).
+  const view = new ViewTest(camera, phys, (x, z) => hf.heightAt(x, z), scene.fog ? r.fogFar : camera.far);
+  const followCam = !fixedView && CAPTURE !== 'AERIAL';
+  const allVisible: Visibility = () => true;
+  let statsDue = true;
+
+  // ---------------- opciones y pausa (desactivada en las capturas)
+  const applySettings = () => {
+    orbit.sensitivity = playerCfg.camera.sensitivity * settings.sensitivity;
+    orbit.invertY = settings.invertY;
+    motoAudio.setLevel(settings.volume);
+    document.body.classList.toggle('debug', DEBUG || settings.debugHud);
+    statsDue = true;
+    if (!CAPTURE && settings.fov !== fov0) {
+      // al instante (el suavizado del bucle queda para el aumento por velocidad)
+      camera.fov += settings.fov - fov0;
+      camera.updateProjectionMatrix();
+      fov0 = settings.fov;
+    }
+  };
+  if (!CAPTURE) applySettings();
+  const pause = new PauseMenu(renderer.domElement, settings, !CAPTURE,
+    (p) => { input.setEnabled(!p); motoAudio.setPaused(p); },
+    (s) => { settings = s; applySettings(); saveSettings(s); });
 
   addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
@@ -263,7 +315,7 @@ async function main() {
   const helpEl = document.getElementById('help')!;
   const helpWalk = helpEl.innerHTML;
   const helpRide = 'Clic para controlar la cámara · <b>W</b> acelerar · <b>S</b> frenar (detenido: empujar atrás) · ' +
-    '<b>A D</b> inclinarse/girar · <b>Espacio</b> freno fuerte · <b>E</b> bajarse · <b>M</b> sonido';
+    '<b>A D</b> inclinarse/girar · <b>Espacio</b> freno fuerte · <b>E</b> bajarse · <b>M</b> sonido · <b>P</b> pausa';
   let helpRiding = false;
 
   /** Busca dónde bajarse: a la izquierda, a la derecha, detrás o delante de la moto, sin chocar con nada. */
@@ -289,12 +341,21 @@ async function main() {
   const feet = new THREE.Vector3();
   let frames = 0;
 
+  // Cámara en su sitio desde el primer paso (la prueba de visibilidad del tráfico la usa).
+  if (!fixedView && CAPTURE !== 'AERIAL') orbit.update(feet.set(character.curr.x, character.curr.y, character.curr.z), 0);
+
   // Compila todos los materiales (incluidos los que aún no están en cámara) antes de empezar.
   {
     const hidden: THREE.Object3D[] = [];
     scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
     try { await renderer.compileAsync(scene, camera); } catch (e) { console.warn('compileAsync', e); }
     for (const o of hidden) o.visible = false;
+    // y las variantes translúcidas del personaje (cámara pegada a él): sin tirón la primera vez que se desvanece
+    if (avatar.root.visible) {
+      avatar.setOpacity(0.5);
+      try { await renderer.compileAsync(avatar.root, camera, scene); } catch (e) { console.warn('compileAsync', e); }
+      avatar.setOpacity(1);
+    }
   }
 
   // Resolución dinámica: si el FPS cae por debajo del objetivo, baja la resolución interna (y la sube con margen).
@@ -308,6 +369,10 @@ async function main() {
     const now = performance.now();
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
+    // En pausa no corre ningún paso fijo (jugador, moto, tráfico y física congelados) y las animaciones usan gdt = 0;
+    // el render sigue (la interpolación queda fija porque acc no cambia).
+    const paused = pause.paused;
+    const gdt = paused ? 0 : dt;
     const m = input.consumeMouse();
     if (!CAPTURE) orbit.input(m.dx, m.dy, m.wheel);
     if (m.dx || m.dy) lastMouseMs = now;
@@ -350,7 +415,7 @@ async function main() {
       }
     }
 
-    acc += dt;
+    if (!paused) acc += dt;
     while (acc >= FIXED) {
       // El salto se consume sólo cuando corre un paso fijo (a >60 FPS hay frames sin paso).
       const jump = CAPTURE ? false : input.consumeJump();
@@ -372,13 +437,13 @@ async function main() {
       obstacles.push({ x: moto.curr.x, z: moto.curr.z, r: riding ? 0.9 : 0.6, isPlayer: riding });
       trafficPhase ^= 1;
       if (trafficPhase) {
-        traffic.step(2 * FIXED, obstacles, riding ? { x: moto.curr.x, z: moto.curr.z } : { x: character.curr.x, z: character.curr.z });
-        traffic.vehicles.forEach((v, i) => {
-          const { body, h } = vehBodies[i];
-          const yaw = Math.atan2(-v.tx, -v.tz);
-          body.setNextKinematicTranslation({ x: v.x, y: hf.heightAt(v.x, v.z) + h / 2, z: v.z });
-          body.setNextKinematicRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) });
-        });
+        const pp = riding ? { x: moto.curr.x, z: moto.curr.z } : { x: character.curr.x, z: character.curr.z };
+        view.update();
+        // tras un salto del jugador (teleport) la cámara sigue en el sitio viejo hasta el próximo render: en ese paso
+        // todo cuenta como visible (nada aparece ni se recicla donde el jugador pueda estar mirando ya)
+        const lag = followCam && Math.hypot(camera.position.x - pp.x, camera.position.z - pp.z) > orbit.distance + 8;
+        traffic.step(2 * FIXED, obstacles, pp, lag ? allVisible : view.test);
+        syncVehicleBodies();
       }
       phys.world.step();
       acc -= FIXED;
@@ -393,7 +458,8 @@ async function main() {
     motoModel.pose(moto.wheelSpin, moto.steerAngle, moto.lean, moto.terrainPitch, moto.suspPitch, !riding);
     trafficView.update(((trafficPhase ? 0 : 1) * FIXED + acc) / (2 * FIXED));
     signalsView.update();
-    for (const hv of traffic.honks) {
+    // cada pito una sola vez, sin importar los FPS (step() los acumula; drainHonks() los entrega y vacía)
+    for (const hv of traffic.drainHonks()) {
       const d = Math.hypot(hv.x - feet.x, hv.z - feet.z);
       motoAudio.honk(Math.max(0, 1 - d / 70));
     }
@@ -412,7 +478,7 @@ async function main() {
       const target = Math.atan2(-character.vel.x, -character.vel.z);
       let d = target - heading;
       d = Math.atan2(Math.sin(d), Math.cos(d));
-      heading += d * Math.min(1, dt * playerCfg.turnSpeed);
+      heading += d * Math.min(1, gdt * playerCfg.turnSpeed);
     }
     if (riding) {
       motoModel.root.updateMatrixWorld(true);
@@ -423,12 +489,12 @@ async function main() {
       if (now - lastMouseMs > MC.camera.followDelay * 1000 && Math.abs(moto.speed) > 2) {
         let dy = moto.yaw - orbit.yaw;
         dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-        orbit.yaw += dy * Math.min(1, MC.camera.followRate * dt);
+        orbit.yaw += dy * Math.min(1, MC.camera.followRate * gdt);
       }
     } else {
       avatar.root.position.copy(feet);
       avatar.root.rotation.y = heading;
-      avatar.animate(speed, character.grounded, character.vel.y, dt);
+      avatar.animate(speed, character.grounded, character.vel.y, gdt);
     }
     if (CAPTURE === 'AERIAL') {
       camera.position.set(-260, 330, 330);
@@ -437,16 +503,18 @@ async function main() {
       camera.position.copy(fixedView.pos);
       camera.lookAt(fixedView.target);
     } else {
-      orbit.update(feet, dt, riding ? MC.camera.pivotHeight : undefined);
+      orbit.update(feet, gdt, riding ? MC.camera.pivotHeight : undefined);
+      // cámara pegada al personaje (o al jinete): se desvanece en vez de verse por dentro
+      avatar.setOpacity(orbit.nearFade);
       // Sensación de velocidad (FOV) y sacudida al chocar
-      const fovTarget = playerCfg.camera.fov + (riding ? MC.camera.fovBoost * Math.min(1, Math.abs(moto.speed) / 26) : 0);
+      const fovTarget = fov0 + (riding ? MC.camera.fovBoost * Math.min(1, Math.abs(moto.speed) / 26) : 0);
       if (Math.abs(camera.fov - fovTarget) > 0.05) { camera.fov += (fovTarget - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
       if (moto.impact.at !== lastImpactSeen) {
         lastImpactSeen = moto.impact.at;
         shake = Math.min(0.5, moto.impact.dv * 0.05);
         if (riding) motoAudio.impact(moto.impact.dv);
       }
-      if (shake > 0.001) {
+      if (shake > 0.001 && !paused) {
         camera.position.add(new THREE.Vector3((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake));
         shake *= Math.exp(-dt * 8);
       }
@@ -459,9 +527,21 @@ async function main() {
     sun.position.copy(shadowCenter).addScaledVector(sunDir, 150);
 
     renderer.render(scene, camera);
+    // estadísticas del tráfico (sólo activos: los inactivos esperan fuera del mapa) y puntos del minimapa
+    dots.length = 0;
+    let active = 0, vSum = 0, stopped = 0, nearest = Infinity;
+    traffic.vehicles.forEach((v, i) => {
+      if (!v.active) return;
+      active++; vSum += v.v;
+      if (v.v < 0.3) stopped++;
+      nearest = Math.min(nearest, Math.hypot(v.x - feet.x, v.z - feet.z));
+      const d = vehDots[i];
+      d.x = v.x; d.z = v.z;
+      dots.push(d);
+    });
     minimap.draw(feet.x, feet.z, riding ? moto.yaw : heading, orbit.yaw,
       riding ? [] : [{ x: moto.curr.x, z: moto.curr.z, color: '#ff9f1a', label: 'moto' }],
-      traffic.vehicles.map((v) => ({ x: v.x, z: v.z, color: v.type === 'taxi' ? '#ffd21a' : '#e8e8e8' })),
+      dots,
       traffic.controllers.map((c) => ({ x: c.x, z: c.z, color: traffic.light(c, 0) === 'G' ? '#2fdc68' : traffic.light(c, 0) === 'Y' ? '#ffb000' : '#ff3b2a' })));
     // HUD de la moto
     speedoEl.style.display = riding && !CAPTURE ? 'block' : 'none';
@@ -472,7 +552,7 @@ async function main() {
         `<div class="rpm"><i style="width:${rpmPct.toFixed(0)}%;background:${d.rpm > 8300 ? '#ff4b3a' : '#f2c200'}"></i></div>` +
         `<span>${Math.round(d.rpm / 100) * 100} rpm · ${SURFACE_NAMES[moto.surface] ?? moto.surface}${d.slip > 0.05 ? ' · ¡derrapa!' : ''}</span>`;
     }
-    motoAudio.update(moto.dyn.rpm, riding ? moto.dyn.throttle : 0, riding ? moto.speed : 0, riding ? moto.dyn.slip : 0);
+    if (!paused) motoAudio.update(moto.dyn.rpm, riding ? moto.dyn.throttle : 0, riding ? moto.speed : 0, riding ? moto.dyn.slip : 0);
     const msg = now < noticeUntil ? notice : !riding && nearMoto ? 'E — subirse a la moto' : riding && speed < 3 ? 'E — bajarse' : '';
     if (promptEl.textContent !== msg) promptEl.textContent = msg;
     promptEl.style.display = msg && !CAPTURE ? 'block' : 'none';
@@ -496,9 +576,14 @@ async function main() {
     if (fpsTime >= 0.5) {
       fps = fpsFrames / fpsTime;
       fpsFrames = 0; fpsTime = 0;
+      statsDue = true;
+    }
+    // el texto sólo se arma si los datos de depuración están a la vista (al activarlos, en el mismo frame)
+    if (statsDue && (DEBUG || settings.debugHud) && !CAPTURE) {
+      statsDue = false;
       const info = renderer.info.render as unknown as { drawCalls?: number; calls?: number; triangles: number };
       statsEl.textContent =
-        `${fps.toFixed(0)} FPS · ${backend} · res ${(pixelRatio * 100).toFixed(0)} %\n` +
+        `${fps.toFixed(0)} FPS · ${backend} · res ${(pixelRatio * 100).toFixed(0)} %${paused ? ' · en pausa' : ''}\n` +
         `x ${feet.x.toFixed(1)}  z ${feet.z.toFixed(1)}  y ${feet.y.toFixed(1)} m (${(meta.origin.elevation + feet.y).toFixed(0)} m s.n.m.)\n` +
         `${speed.toFixed(1)} m/s ${character.grounded ? '' : '· en el aire'}\n` +
         `draw calls ${info.drawCalls ?? info.calls ?? '?'} · tris ${(info.triangles / 1000).toFixed(0)}k`;
@@ -509,16 +594,16 @@ async function main() {
       speed, camDistance: orbit.current, camDesired: orbit.distance, cam: camera.position.toArray(),
       riding, motoSpeed: moto.speed, moto: [moto.curr.x, moto.curr.y, moto.curr.z], motoYaw: moto.yaw, motoLean: moto.lean,
       motoGear: moto.dyn.gear + 1, motoRpm: moto.dyn.rpm, motoSurface: moto.surface, motoSlip: moto.dyn.slip,
-      vehicles: traffic.vehicles.length, signals: traffic.controllers.length,
-      trafficAvgSpeed: traffic.vehicles.reduce((a, v) => a + v.v, 0) / Math.max(1, traffic.vehicles.length),
-      trafficStopped: traffic.vehicles.filter((v) => v.v < 0.3).length,
-      nearestVehicle: Math.min(...traffic.vehicles.map((v) => Math.hypot(v.x - feet.x, v.z - feet.z))),
+      vehicles: active, vehiclesTotal: traffic.vehicles.length, signals: traffic.controllers.length,
+      trafficAvgSpeed: vSum / Math.max(1, active), trafficStopped: stopped, nearestVehicle: nearest,
+      paused, settings: { ...settings },
       buildings: bmeta.length, drawCalls: buildings.drawCalls, buildingTriangles: buildings.triangles,
       teleport: (x: number, z: number) => character.teleport(x, hf.heightAt(x, z) + 0.05, z),
       setView: (yaw: number, pitch: number, dist: number) => { orbit.yaw = yaw; orbit.pitch = pitch; orbit.distance = dist; },
-      debug: () => ({ phys, buildings, character, moto, motoModel, avatar, scene, traffic }),
-      vehicleList: () => traffic.vehicles.map((v) => ({ id: v.id, type: v.type, x: v.x, z: v.z, v: v.v, tx: v.tx, tz: v.tz,
-        lane: v.path[0].kind === 'lane' ? v.path[0].id : -1 })),
+      debug: () => ({ phys, buildings, character, moto, motoModel, motoAudio, avatar, scene, traffic, view, orbit, camera }),
+      vehicleList: () => traffic.vehicles.filter((v) => v.active).map((v) => ({ id: v.id, type: v.type, x: v.x, z: v.z, v: v.v,
+        tx: v.tx, tz: v.tz, lane: v.path[0].kind === 'lane' ? v.path[0].id : -1 })),
+      setPaused: (p: boolean) => pause.set(p),
       signalList: () => traffic.controllers.map((c) => ({ x: c.x, z: c.z, source: c.source, state: traffic.light(c, 0) })),
       placeMoto: (x: number, z: number, yaw: number) => moto.teleport(x, hf.heightAt(x, z) + 0.05, z, yaw),
     };

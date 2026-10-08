@@ -1,5 +1,5 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
-import type { Physics } from '../physics';
+import { GROUP, groups, type Physics } from '../physics';
 import { MotoDynamics, type MotoEnv, type MotoSpec } from './motoDynamics';
 import type { SurfaceMap } from './surface';
 import vcfg from '../data/vehicles.json';
@@ -40,9 +40,10 @@ export class MotoController {
     this.body = phys.world.createRigidBody(
       R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y + this.r, z).setRotation(this.yawQuat(yaw)),
     );
-    const s = Math.SQRT1_2; // cápsula acostada a lo largo del eje Z local de la moto
+    const s = Math.SQRT1_2; // cápsula acostada a lo largo del eje Z local de la moto; grupo VEHICLE (la cámara la ignora)
     this.collider = phys.world.createCollider(
-      R.ColliderDesc.capsule(C.collider.halfLength, this.r).setRotation({ x: s, y: 0, z: 0, w: s }), this.body,
+      R.ColliderDesc.capsule(C.collider.halfLength, this.r).setRotation({ x: s, y: 0, z: 0, w: s })
+        .setCollisionGroups(groups(GROUP.VEHICLE)), this.body,
     );
     this.kcc = phys.world.createCharacterController(0.03);
     this.kcc.setUp({ x: 0, y: 1, z: 0 });

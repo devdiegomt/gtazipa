@@ -72,9 +72,13 @@
     "lookahead": 32,
     "respawnMinDistance": 60,
     "junctionWaitTimeout": 5,
+    "_junctionDoc": "junctionWaitTimeout: s detenido esperando sólo el cruce (reserva en conflicto o salida llena; no cuentan el semáforo, el jugador ni el de adelante) tras los que el vehículo pide turno (nadie más reserva un conector en conflicto hasta que pase) y, si la cadena de espera cierra un ciclo, el que más lleva esperando (empate: menor id) entra ignorando reservas y salida llena (sólo frena ante el choque físico). stuckRecycle: último recurso para ciclos sólo físicos o colas tras un obstáculo que no es el jugador, y sólo si no se ve.",
+    "stuckRecycle": 45,
     "honkAfter": 1.6,
     "bubbleRadius": 210,
     "despawnDistance": 250,
-    "_bubbleDoc": "Burbuja de tráfico: ~110 vehículos circulan a ≤ 210 m del jugador (≈ 1 cada 40 m de carril en el centro); los que pasan de 250 m reaparecen a 60–210 m."
+    "despawnHardDistance": 650,
+    "spawnTriesPerStep": 80,
+    "_bubbleDoc": "Burbuja de tráfico: ~110 vehículos circulan a ≤ 210 m del jugador (≈ 1 cada 40 m de carril en el centro); reaparecen a 60–210 m sólo donde el jugador no ve. Los que pasan de despawnDistance (250 m) se reciclan sólo si no se ven; a la vista siguen hasta despawnHardDistance (= fogFar de world.json, ocultos por la niebla). Como mucho spawnTriesPerStep intentos de colocación por paso (acota el costo)."
   }
 }

@@ -3,6 +3,7 @@
  * La frecuencia de encendido es rpm/120 (una explosión cada dos vueltas): a ralentí (1 500 rpm) son 12,5 Hz,
  * por eso el sonido "tuc-tuc" sale de los armónicos. Se suman viento y derrape (ruido filtrado) y golpes.
  * El AudioContext se crea con el primer gesto del usuario (requisito de los navegadores). M = silenciar.
+ * En pausa el contexto se suspende (motor, viento y pitos callan y el tiempo de audio se detiene).
  */
 export class MotoAudio {
   private ctx: AudioContext | null = null;
@@ -16,6 +17,9 @@ export class MotoAudio {
   private skid!: GainNode;
   private noise!: AudioBuffer;
   muted = false;
+  /** Volumen general de las opciones (0..1), multiplica el de vehicles.json. */
+  private level = 1;
+  private paused = false;
   private running = false;
   private startT = 0;
 
@@ -23,16 +27,18 @@ export class MotoAudio {
     const unlock = () => this.ensure();
     addEventListener('keydown', unlock);
     addEventListener('pointerdown', unlock);
-    addEventListener('keydown', (e) => { if (e.code === 'KeyM') this.toggleMute(); });
+    addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !this.paused) this.toggleMute(); });
   }
 
+  private get gain() { return this.muted ? 0 : this.volume * this.level; }
+
   private ensure() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') void this.ctx.resume(); return; }
+    if (this.ctx) { if (this.ctx.state === 'suspended' && !this.paused) void this.ctx.resume(); return; }
     let ctx: AudioContext;
     try { ctx = new AudioContext(); } catch { return; }
     this.ctx = ctx;
     this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : this.volume;
+    this.master.gain.value = this.gain;
     const comp = ctx.createDynamicsCompressor();
     this.master.connect(comp).connect(ctx.destination);
 
@@ -84,11 +90,25 @@ export class MotoAudio {
     this.skid = noiseChain('bandpass', 1150, 6);
     this.osc.start();
     this.sub.start();
+    if (this.paused) void ctx.suspend();
   }
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume, this.ctx.currentTime, 0.05);
+    if (this.ctx) this.master.gain.setTargetAtTime(this.gain, this.ctx.currentTime, 0.05);
+  }
+
+  /** Volumen general (opciones), 0..1. */
+  setLevel(v: number) {
+    this.level = v;
+    if (this.ctx) this.master.gain.setTargetAtTime(this.gain, this.ctx.currentTime, 0.05);
+  }
+
+  /** Pausa: suspende el contexto (y no lo reanuda ningún gesto hasta quitarla). */
+  setPaused(p: boolean) {
+    this.paused = p;
+    if (!this.ctx) return;
+    if (p) void this.ctx.suspend(); else if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
 
   /** Arranque: motor de arranque y subida a ralentí. */

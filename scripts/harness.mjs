@@ -1,6 +1,10 @@
 // Arranca Vite (o usa ZIPA_URL) y abre Chrome con WebGPU vía Playwright.
+// Sin Google Chrome (p. ej. Linux sin GPU): ZIPA_CHROME_PATH=/ruta/a/chromium usa ese ejecutable con ANGLE por
+// software (SwiftShader); conviene WEBGL=1. Carga en ~45 s y corre a ~10 FPS: las pruebas de FPS fallan ahí.
 import { createServer } from 'vite';
 import { chromium } from 'playwright';
+
+const CHROME_PATH = process.env.ZIPA_CHROME_PATH;
 
 export async function startGame({ width = 1600, height = 900 } = {}) {
   let server = null;
@@ -10,11 +14,17 @@ export async function startGame({ width = 1600, height = 900 } = {}) {
     await server.listen();
     base = server.resolvedUrls.local[0];
   }
-  const browser = await chromium.launch({
-    channel: process.env.ZIPA_BROWSER ?? 'chrome',
-    headless: process.env.HEADED ? false : true,
-    args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=d3d11'],
-  });
+  const browser = await chromium.launch(CHROME_PATH
+    ? {
+      executablePath: CHROME_PATH,
+      headless: process.env.HEADED ? false : true,
+      args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+    }
+    : {
+      channel: process.env.ZIPA_BROWSER ?? 'chrome',
+      headless: process.env.HEADED ? false : true,
+      args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=d3d11'],
+    });
   const page = await browser.newPage({ viewport: { width, height } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -23,7 +33,7 @@ export async function startGame({ width = 1600, height = 900 } = {}) {
     base, page, errors,
     async open(query = '') {
       await page.goto(base + query + (process.env.WEBGL ? (query ? '&' : '?') + 'webgl' : ''));
-      await page.waitForFunction(() => window.__zipa?.ready === true, null, { timeout: 120_000 });
+      await page.waitForFunction(() => window.__zipa?.ready === true, null, { timeout: CHROME_PATH ? 600_000 : 120_000 });
     },
     state: () => page.evaluate(() => {
       const z = window.__zipa;

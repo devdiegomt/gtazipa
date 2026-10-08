@@ -21,6 +21,9 @@ export class Avatar {
   private armL: Limb;
   private armR: Limb;
   private phase = 0;
+  /** Todos los materiales del maniquí (incluido el casco), para desvanecerlo. */
+  private mats: THREE.Material[] = [];
+  private opacity = 1;
 
   constructor() {
     const mat = (color: string, roughness = 0.85, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -93,6 +96,27 @@ export class Avatar {
     this.legR = limb(this.hips, 0.11, 0, 0.44, 0.42, 0.16, pants, pants, foot, new THREE.Vector3(0.15, 0, -1));
     this.armL = limb(this.hips, -0.29, 0.56, 0.29, 0.27, 0.11, shirt, shirt, hand, new THREE.Vector3(-0.8, -0.5, 0.5));
     this.armR = limb(this.hips, 0.29, 0.56, 0.29, 0.27, 0.11, shirt, shirt, hand, new THREE.Vector3(0.8, -0.5, 0.5));
+    const mats = new Set<THREE.Material>();
+    this.root.traverse((o) => { if (o instanceof THREE.Mesh) mats.add(o.material as THREE.Material); });
+    this.mats = [...mats];
+  }
+
+  /**
+   * Opacidad del cuerpo (cámara pegada al personaje). 1 = opaco (sin coste de ordenar transparencias);
+   * ~0 = oculto sin tocar root.visible (main.ts lo usa en las vistas fijas). depthWrite queda siempre activo.
+   * Solo recompila (needsUpdate) cuando cambia `transparent`; la opacidad es un uniforme.
+   */
+  setOpacity(alpha: number) {
+    const a = alpha >= 0.999 ? 1 : alpha <= 0.02 ? 0 : alpha;
+    if (a === this.opacity) return;
+    this.opacity = a;
+    this.hips.visible = a > 0;
+    if (a === 0) return; // oculto: los materiales quedan como estaban
+    const transparent = a < 1;
+    for (const m of this.mats) {
+      if (m.transparent !== transparent) { m.transparent = transparent; m.needsUpdate = true; }
+      m.opacity = a;
+    }
   }
 
   setHelmet(on: boolean) {
