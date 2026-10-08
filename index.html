@@ -16,11 +16,56 @@
     <canvas id="minimap" width="220" height="220"></canvas>
     <div id="speedo"></div>
     <div id="prompt"></div>
-    <div id="help">
-      Clic para controlar la cámara · <b>WASD</b> mover · <b>Shift</b> correr · <b>Espacio</b> saltar ·
-      <b>Rueda</b> distancia · <b>E</b> moto · <b>Esc</b> soltar ratón
+    <!-- barra de ayuda y créditos de datos apilados: nunca se solapan -->
+    <div id="footer">
+      <div id="help">
+        Clic para controlar la cámara · <b>WASD</b> mover · <b>Shift</b> correr · <b>Espacio</b> saltar ·
+        <b>Rueda</b> distancia · <b>E</b> moto · <b>P</b> pausa
+      </div>
+      <div id="attribution"></div>
     </div>
-    <div id="attribution"></div>
+    <div id="pause" hidden>
+      <div class="panel" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+        <h2 id="pause-title">PAUSA</h2>
+        <nav>
+          <button type="button" class="primary" data-act="resume">Reanudar</button>
+          <button type="button" data-tab="options">Opciones</button>
+          <button type="button" data-tab="controls">Controles</button>
+        </nav>
+        <section data-tab="options">
+          <label class="range">Sensibilidad del ratón <output></output><input type="range" id="opt-sens" /></label>
+          <label class="check"><input type="checkbox" id="opt-invert" /> Invertir eje vertical</label>
+          <label class="range">Volumen general <output></output><input type="range" id="opt-vol" /></label>
+          <label class="range">Campo de visión <output></output><input type="range" id="opt-fov" /></label>
+          <label class="check"><input type="checkbox" id="opt-debug" /> Datos de depuración <kbd>F3</kbd></label>
+        </section>
+        <section data-tab="controls" hidden>
+          <h3>A pie</h3>
+          <dl>
+            <dt>Clic</dt><dd>controlar la cámara (ratón)</dd>
+            <dt>WASD</dt><dd>mover</dd>
+            <dt>Shift</dt><dd>correr</dd>
+            <dt>Espacio</dt><dd>saltar</dd>
+            <dt>Rueda</dt><dd>distancia de la cámara</dd>
+            <dt>E</dt><dd>subirse a la moto</dd>
+          </dl>
+          <h3>En moto</h3>
+          <dl>
+            <dt>W</dt><dd>acelerar</dd>
+            <dt>S</dt><dd>frenar (detenido: empujar atrás)</dd>
+            <dt>A D</dt><dd>inclinarse / girar</dd>
+            <dt>Espacio</dt><dd>freno fuerte</dd>
+            <dt>E</dt><dd>bajarse (detenido)</dd>
+            <dt>M</dt><dd>sonido</dd>
+          </dl>
+          <h3>General</h3>
+          <dl>
+            <dt>P · Esc</dt><dd>pausa (Esc también suelta el ratón)</dd>
+            <dt>F3</dt><dd>datos de depuración</dd>
+          </dl>
+        </section>
+      </div>
+    </div>
     <div id="loading">Cargando Zipaquirá…</div>
     <script type="module" src="/src/main.ts"></script>
   </body>

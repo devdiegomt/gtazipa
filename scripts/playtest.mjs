@@ -1,5 +1,6 @@
 // Pruebas jugables automáticas en navegador real: caminar, correr, saltar, colisión con edificios,
-// cámara sin atravesar paredes y FPS. Uso: node scripts/playtest.mjs
+// cámara sin atravesar paredes, HUD, pausa y FPS. Uso: node scripts/playtest.mjs
+// (Linux sin Chrome ni GPU: ZIPA_CHROME_PATH=/ruta/a/chromium WEBGL=1; ahí las pruebas de FPS fallan, es lo esperado.)
 import { readFileSync } from 'node:fs';
 import { startGame } from './harness.mjs';
 
@@ -247,6 +248,41 @@ try {
   await page.keyboard.up('w');
   await page.keyboard.up('Shift');
   check('FPS corriendo >= 55', s.fps >= 55, `${Number(s.fps).toFixed(1)} FPS`);
+
+  // ---------------- HUD de depuración (F3) y menú de pausa (P)
+  {
+    const statsShown = () => page.evaluate(() => getComputedStyle(document.getElementById('stats')).display !== 'none');
+    // window.__zipa se actualiza una vez por frame: esperar el estado en vez de un tiempo fijo
+    const until = (fn) => page.waitForFunction(fn, null, { timeout: 15_000 }).catch(() => {});
+    check('datos de depuración ocultos por defecto', !(await statsShown()), '');
+    await page.keyboard.press('F3');
+    await wait(300);
+    const shown = await statsShown();
+    await page.keyboard.press('F3');
+    await wait(300);
+    check('F3 muestra y oculta los datos de depuración', shown && !(await statsShown()), `visibles tras F3: ${shown}`);
+    const snap = () => page.evaluate(() => ({ t: window.__zipa.debug().traffic.time, v: window.__zipa.vehicleList().map((v) => `${v.id}:${v.x},${v.z}`).join() }));
+    await page.keyboard.press('p');
+    await until(() => window.__zipa.paused === true);
+    const a = await snap();
+    await wait(1500);
+    const b = await snap();
+    s = await g.state();
+    const menu = await page.evaluate(() => !document.getElementById('pause').hidden);
+    check('P pausa y congela el tráfico', s.paused === true && menu && a.t === b.t && a.v === b.v,
+      `paused=${s.paused}, menú visible: ${menu}, tiempo del tráfico ${a.t.toFixed(2)} → ${b.t.toFixed(2)}`);
+    await page.click('#pause button[data-act="resume"]');
+    await until(() => window.__zipa.paused === false);
+    await wait(1500);
+    const c = await snap();
+    s = await g.state();
+    check('Reanudar continúa el juego', s.paused === false && c.t > b.t, `paused=${s.paused}, tiempo del tráfico ${b.t.toFixed(2)} → ${c.t.toFixed(2)}`);
+    const sep = await page.evaluate(() => {
+      const h = document.getElementById('help').getBoundingClientRect(), at = document.getElementById('attribution').getBoundingClientRect();
+      return h.bottom <= at.top || at.bottom <= h.top || h.right <= at.left || at.right <= h.left;
+    });
+    check('barra de ayuda y créditos sin solaparse', sep, '');
+  }
 
   check('sin errores de consola', g.errors.length === 0, g.errors.slice(0, 3).join(' | '));
 } finally {

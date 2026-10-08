@@ -1,6 +1,7 @@
 /**
  * Simulación de tráfico (pura). Modelo de seguimiento IDM (Treiber et al.), semáforos de dos fases por cruce,
  * prelación por ocupación en cruces sin semáforo, y obstáculos externos (jugador, moto) ante los que se frena y pita.
+ * Los vehículos aparecen y desaparecen sólo donde el jugador no los ve (callback `visible` de step()).
  */
 import { LaneGraph, type Connector, type Lane, type Piece, type RoadGraph } from './graph';
 
@@ -18,8 +19,19 @@ export interface TrafficCfg {
   lookahead: number; respawnMinDistance: number; junctionWaitTimeout: number; honkAfter: number;
   /** Burbuja de tráfico alrededor del jugador: radio donde circulan y distancia a la que reaparecen. */
   bubbleRadius?: number; despawnDistance?: number;
+  /** Más allá de esta distancia se reciclan aunque estén a la vista (la niebla ya los oculta). */
+  despawnHardDistance?: number;
+  /** Intentos de colocación por paso entre todos los vehículos inactivos (acota el costo de reaparecer). */
+  spawnTriesPerStep?: number;
+  /** Último recurso: un vehículo interbloqueado (o tras un obstáculo que no es el jugador) más de estos s se recicla si no se ve. */
+  stuckRecycle?: number;
 }
 export interface SignalCfg { green: number; yellow: number; allRed: number }
+
+/** Restricción que frena al vehículo: otro vehículo, jugador, obstáculo, semáforo, cruce ocupado, salida llena, fin del camino. */
+export type WaitReason = 'none' | 'leader' | 'player' | 'obstacle' | 'signal' | 'junction' | 'exit' | 'end';
+/** ¿El jugador ve este punto del suelo? (main.ts: frustum + distancia + rayo de oclusión). */
+export type Visibility = (x: number, z: number) => boolean;
 
 export interface Vehicle {
   id: number; type: VehicleType; length: number; width: number; v: number; v0f: number;
@@ -29,6 +41,16 @@ export interface Vehicle {
   wait: number; blockedByPlayer: number; lastHonk: number; braking: boolean;
   /** Conector del cruce reservado (el vehículo ya tiene paso) hasta que su cola salga del cruce. */
   res: Connector | null;
+  /** false = estacionado fuera del mundo esperando un punto de aparición oculto: no se dibuja ni interactúa. */
+  active: boolean;
+  /** Motivo de la restricción más cercana y vehículo que la causa (-1 si no es un vehículo). */
+  why: WaitReason; blocker: number;
+  /** Segundos detenido esperando sólo el cruce (conflicto de reserva o salida llena). */
+  jam: number;
+  /** Turno pedido tras junctionWaitTimeout s: nadie más reserva un conector en conflicto hasta que este pase. */
+  claim: Connector | null;
+  /** Prelación concedida para romper un interbloqueo: ignora reservas ajenas y salida llena en el próximo cruce. */
+  force: boolean;
 }
 export interface Obstacle { x: number; z: number; r: number; isPlayer: boolean }
 
@@ -48,19 +70,36 @@ export function rng(seed: number) {
   };
 }
 
+const HIDDEN: Visibility = () => false;
+/** Los inactivos se guardan lejos del mapa (separados: main.ts mueve allí sus cuerpos cinemáticos). */
+const PARK = 10000;
+/** Un vehículo visible que sale del mapa se detiene a esta distancia del borde (aún sobre el terreno) hasta dejar de verse. */
+const EXIT_STOP = 20;
+/** Raíz de una cadena de espera (unjam): se resuelve sola, ciclo (interbloqueo) u obstáculo que no es el jugador. */
+const ROOT_FREE = 1, ROOT_CYCLE = 2, ROOT_OBSTACLE = 3;
+
 export class TrafficSim {
   readonly lg: LaneGraph;
   vehicles: Vehicle[] = [];
   controllers: Controller[] = [];
   time = 0;
+  /**
+   * Pitos acumulados desde el último drainHonks(); step() ya no los borra. El ciclo de render debe usar drainHonks()
+   * (no iterar este arreglo) para que cada pito suene una sola vez sin importar los FPS.
+   */
   honks: Vehicle[] = [];
   private rand: () => number;
   private occupancy = new Map<number, Set<number>>();   // nodo → vehículos con reserva en ese cruce
+  private claims = new Map<number, Set<number>>();      // nodo → vehículos que pidieron turno en ese cruce
   /** Conflictos entre trayectorias de un mismo cruce (se cruzan o confluyen). */
   private conflicts = new Map<number, Set<number>>();
-  /** Por carril: menor s ocupada en este paso (espacio libre a la salida del cruce). */
+  /** Por carril: menor s ocupada en este paso (espacio libre a la salida del cruce) y quién la ocupa. */
   private laneTail = new Map<number, number>();
+  private laneTailId = new Map<number, number>();
   private signalOf = new Map<number, Controller>();
+  private spent = 0;        // intentos de colocación gastados en este paso
+  private cursor = 0;       // reparto equitativo de los intentos entre inactivos
+  private mark: Int8Array;  // estado del recorrido de cadenas de espera
 
   constructor(g: RoadGraph, readonly cfg: TrafficCfg, readonly sig: SignalCfg, seed = 7, readonly areaHalf = 400,
     center: { x: number; z: number } | null = null) {
@@ -113,13 +152,17 @@ export class TrafficSim {
         }
       }
     }
+    // todos los vehículos existen desde el inicio (id === índice); el que no cabe cerca del centro va a cualquier
+    // parte del área (step() lo recicla si queda lejos) y, si tampoco, espera inactivo
     const mix = Object.entries(cfg.mix);
     for (let i = 0; i < cfg.vehicles; i++) {
       let r = this.rand(), type = mix[0][0] as VehicleType;
       for (const [k, w] of mix) { if (r < w) { type = k as VehicleType; break; } r -= w; }
       const v = this.newVehicle(this.vehicles.length, type);
-      if (this.place(v, center, 10)) this.vehicles.push(v);
+      this.vehicles.push(v);
+      if (!this.place(v, center, 10) && !(center && this.place(v, null, 0))) this.park(v);
     }
+    this.mark = new Int8Array(this.vehicles.length);
   }
 
   get cycle() { return 2 * (this.sig.green + this.sig.yellow + this.sig.allRed); }
@@ -134,21 +177,28 @@ export class TrafficSim {
     return 'R';
   }
 
+  /** Devuelve los pitos acumulados (cada uno una sola vez) y vacía `honks`. */
+  drainHonks(): Vehicle[] {
+    return this.honks.splice(0);
+  }
+
   private newVehicle(id: number, type: VehicleType): Vehicle {
     const d = DIMS[type];
     return { id, type, length: d.length, width: d.width, v: 0, v0f: d.v0 * (0.9 + this.rand() * 0.2), path: [], s: 0,
       x: 0, z: 0, tx: 0, tz: 1, px: 0, pz: 0, ptx: 0, ptz: 1, wait: 0, blockedByPlayer: 0, lastHonk: -99, braking: false,
-      res: null };
+      res: null, active: false, why: 'none', blocker: -1, jam: 0, claim: null, force: false };
   }
 
   /**
-   * Coloca el vehículo en un carril libre. Con `center` (el jugador), dentro de la burbuja de tráfico y a más de
-   * `minD` m de él (para que no aparezca a la vista); sin centro, en cualquier parte del área.
+   * Coloca el vehículo en un carril libre y lo activa. Con `center` (el jugador), dentro de la burbuja de tráfico y a
+   * más de `minD` m de él; sin centro, en cualquier parte del área. Nunca en un punto que el jugador vea.
    */
-  private place(v: Vehicle, center: { x: number; z: number } | null, minD = this.cfg.respawnMinDistance) {
+  private place(v: Vehicle, center: { x: number; z: number } | null, minD = this.cfg.respawnMinDistance,
+    visible: Visibility = HIDDEN, tries = 120) {
     const lanes = this.lg.lanes;
     const R = this.cfg.bubbleRadius ?? Infinity;
-    for (let tries = 0; tries < 120; tries++) {
+    for (let k = 0; k < tries; k++) {
+      this.spent++;
       const l = lanes[Math.floor(this.rand() * lanes.length)];
       if (l.poly.length < 12) continue;
       const s = 4 + this.rand() * (l.poly.length - 8);
@@ -158,17 +208,28 @@ export class TrafficSim {
         const d = Math.hypot(p.x - center.x, p.z - center.z);
         if (d < minD || d > R) continue;
       }
-      if (this.vehicles.some((o) => o !== v && Math.hypot(o.x - p.x, o.z - p.z) < 14)) continue;
+      if (this.vehicles.some((o) => o.active && o !== v && Math.hypot(o.x - p.x, o.z - p.z) < 14)) continue;
+      if (visible(p.x, p.z)) continue;
+      v.active = true;
       v.path = [l];
       v.s = s;
       v.v = l.speed * 0.5;
-      v.wait = 0;
+      v.wait = 0; v.jam = 0; v.blockedByPlayer = 0; v.braking = false; v.force = false; v.why = 'none'; v.blocker = -1;
       this.extend(v);
       this.updatePose(v);
       v.px = v.x; v.pz = v.z; v.ptx = v.tx; v.ptz = v.tz;
       return true;
     }
     return false;
+  }
+
+  /** Desactiva el vehículo (sin reserva, fuera del mundo) hasta que haya dónde reaparecer sin que se vea. */
+  private park(v: Vehicle) {
+    this.release(v);
+    this.unclaim(v);
+    v.active = false;
+    v.v = 0; v.wait = 0; v.jam = 0; v.blockedByPlayer = 0; v.braking = false; v.force = false; v.why = 'none'; v.blocker = -1;
+    v.x = v.px = PARK + v.id * 12; v.z = v.pz = PARK;
   }
 
   /** Asegura que el camino cubra la distancia de anticipación eligiendo giros al azar. */
@@ -199,9 +260,20 @@ export class TrafficSim {
     v.x = p.x; v.z = p.z; v.tx = p.tx; v.tz = p.tz;
   }
 
+  /** Ya entró al último carril de un callejón sin salida, o llegó a su parada al final (si ese carril es muy corto). */
+  private deadEnd(v: Vehicle) {
+    const last = v.path[v.path.length - 1];
+    if (last.kind !== 'lane' || last.outs.length) return false;
+    let rem = -v.s;
+    for (const p of v.path) rem += p.poly.length;
+    return v.path.length === 1 || rem < v.length / 2 + this.cfg.idm.s0 + 2;   // IDM se detiene a s0 de la parada
+  }
+
+  private outside(x: number, z: number, m = 0) { return Math.abs(x) > this.areaHalf + m || Math.abs(z) > this.areaHalf + m; }
+
   /** Distancia libre hasta el obstáculo más cercano en el camino (otros vehículos, jugador, semáforo, cruce ocupado). */
   private gapAhead(v: Vehicle, grid: Map<string, Vehicle[]>, obstacles: Obstacle[]) {
-    let best = Infinity, leaderV = 0, player = false;
+    let best = Infinity, leaderV = 0, why: WaitReason = 'none', blk = -1;
     const look = this.cfg.lookahead;
     // muestras del camino futuro cada 1,5 m (distancia d medida desde el vehículo)
     const samples: { s: number; x: number; z: number }[] = [];
@@ -217,13 +289,13 @@ export class TrafficSim {
       startD += L;
       if (startD > look) break;
     }
-    const check = (ox: number, oz: number, halfLen: number, halfW: number, ov: number, isPlayer: boolean) => {
+    const check = (ox: number, oz: number, halfLen: number, halfW: number, ov: number, w: WaitReason, id: number) => {
       for (const sm of samples) {
         if (sm.s > best) break;
         const d = Math.hypot(ox - sm.x, oz - sm.z);
         if (d < v.width / 2 + halfW + 0.25) {
           const gap = sm.s - v.length / 2 - halfLen;
-          if (gap < best) { best = gap; leaderV = ov; player = isPlayer; }
+          if (gap < best) { best = gap; leaderV = ov; why = w; blk = id; }
           break;
         }
       }
@@ -235,54 +307,89 @@ export class TrafficSim {
           if (o === v) continue;
           // detrás de mí: ignorar
           if ((o.x - v.x) * v.tx + (o.z - v.z) * v.tz < 0) continue;
-          check(o.x, o.z, o.length / 2, o.width / 2, Math.max(0, o.v * (o.tx * v.tx + o.tz * v.tz)), false);
+          check(o.x, o.z, o.length / 2, o.width / 2, Math.max(0, o.v * (o.tx * v.tx + o.tz * v.tz)), 'leader', o.id);
         }
       }
     }
     for (const ob of obstacles) {
       if ((ob.x - v.x) * v.tx + (ob.z - v.z) * v.tz < 0) continue;
-      check(ob.x, ob.z, ob.r, ob.r, 0, ob.isPlayer);
+      check(ob.x, ob.z, ob.r, ob.r, 0, ob.isPlayer ? 'player' : 'obstacle', -1);
     }
-    // semáforos y cruces sin semáforo: parada virtual al final del carril
+    // fin del camino: callejón sin salida, o salida del mapa (sólo llega allí quien sigue a la vista)
+    const stopAt = (d: number) => {
+      const g = d - v.length / 2 - 0.5;
+      if (g < best) { best = Math.max(0.01, g); leaderV = 0; why = 'end'; blk = -1; }
+    };
+    const last = v.path[v.path.length - 1];
+    if (startD <= look && last.kind === 'lane' && !last.outs.length) stopAt(startD);
+    for (const sm of samples) if (this.outside(sm.x, sm.z, EXIT_STOP)) { stopAt(sm.s); break; }
+    // semáforos y cruces sin semáforo: parada virtual al final del carril (se mira al menos la distancia de frenado,
+    // para no descubrir un amarillo cuando ya no hay cómo parar)
+    const brake = (v.v * v.v) / (2 * this.cfg.idm.b);
     let dist = v.path[0].poly.length - v.s;
     for (let i = 0; i < v.path.length; i++) {
       const piece = v.path[i];
       if (i > 0) dist += piece.poly.length;
       if (piece.kind !== 'lane') continue;
-      if (dist > look) break;
+      if (dist > Math.max(look, brake + 5)) break;
       const stopGap = dist - v.length / 2 - 0.5;
       const next = v.path[i + 1] as Connector | undefined;
       const atJunction = !!next && next.kind === 'conn' && (this.lg.nodes.get(next.node)?.radius ?? 0) > 0;
       if (!atJunction && !piece.signal) break;
-      if (next && v.res === next) break;                         // ya tiene paso reservado
-      let go = true;
+      const reserved = !!next && v.res === next;
+      let go = true, w: WaitReason = 'signal', id = -1;
       if (piece.signal) {
         const st = this.light(this.controllers[piece.signal.controller], piece.signal.phase);
-        const canStop = stopGap > (v.v * v.v) / (2 * this.cfg.idm.b) - 1;
-        if (st === 'R' || (st === 'Y' && canStop)) go = false;
+        const canStop = stopGap > brake - 1;
+        // con paso reservado sólo se detiene ante el rojo si aún puede (p. ej. lo frenó el de adelante)
+        if (reserved ? st === 'R' && canStop : st === 'R' || (st === 'Y' && canStop)) go = false;
+      }
+      if (reserved) {
+        if (go) break;                                           // ya tiene paso reservado
+        this.release(v);
       }
       if (go && atJunction && next) {
-        // ningún ocupante con trayectoria en conflicto, y espacio a la salida ("no bloquear el cruce")
-        const conf = this.conflicts.get(next.id);
-        for (const id of this.occupancy.get(next.node) ?? []) {
-          const o = this.vehicles[id];
-          if (o && o !== v && o.res && conf?.has(o.res.id)) { go = false; break; }
+        // ningún ocupante con trayectoria en conflicto, espacio a la salida ("no bloquear el cruce") y respeto del
+        // turno pedido por quien lleva más esperando; con prelación (interbloqueo) sólo cuenta el choque físico,
+        // que vigilan las muestras de arriba
+        if (!v.force) {
+          const conf = this.conflicts.get(next.id);
+          for (const oid of this.occupancy.get(next.node) ?? []) {
+            const o = this.vehicles[oid];
+            if (o !== v && o.res && conf?.has(o.res.id)) { go = false; w = 'junction'; id = oid; break; }
+          }
+          const tail = this.laneTail.get(next.to.id) ?? Infinity;
+          if (go && tail < v.length + this.cfg.idm.s0 + 1) { go = false; w = 'exit'; id = this.laneTailId.get(next.to.id)!; }
+          if (go) {
+            for (const oid of this.claims.get(next.node) ?? []) {
+              const o = this.vehicles[oid];
+              if (o !== v && o.claim && conf?.has(o.claim.id) && (o.jam > v.jam || (o.jam === v.jam && o.id < v.id))) {
+                go = false; w = 'junction'; id = oid; break;
+              }
+            }
+          }
+          // tras junctionWaitTimeout s esperando el cruce pide turno (evita que un flujo continuo lo deje sin paso)
+          if (!go && v.jam > this.cfg.junctionWaitTimeout) {
+            v.claim = next;
+            if (!this.claims.has(next.node)) this.claims.set(next.node, new Set());
+            this.claims.get(next.node)!.add(v.id);
+          }
         }
-        const tail = this.laneTail.get(next.to.id) ?? Infinity;
-        if (tail < v.length + this.cfg.idm.s0 + 1) go = false;
         // reserva atómica cuando ya está cerca de la línea de pare
         const commit = (v.v * v.v) / (2 * this.cfg.idm.b) + 3;
         if (go && stopGap < commit) {
+          this.release(v);
+          this.unclaim(v);
           v.res = next;
+          v.force = false;
           if (!this.occupancy.has(next.node)) this.occupancy.set(next.node, new Set());
           this.occupancy.get(next.node)!.add(v.id);
         }
-        if (go && v.res !== next && stopGap < commit + 6) go = stopGap >= commit;   // aún no puede reservar
       }
-      if (!go && stopGap < best && stopGap > -1.5) { best = Math.max(0.01, stopGap); leaderV = 0; player = false; }
+      if (!go && stopGap < best && stopGap > -1.5) { best = Math.max(0.01, stopGap); leaderV = 0; why = w; blk = id; }
       break;   // sólo el próximo final de carril
     }
-    return { gap: best, leaderV, player };
+    return { gap: best, leaderV, why: why as WaitReason, blk };
   }
 
   private release(v: Vehicle) {
@@ -290,28 +397,43 @@ export class TrafficSim {
     v.res = null;
   }
 
-  step(dt: number, obstacles: Obstacle[] = [], playerPos: { x: number; z: number } | null = null) {
+  private unclaim(v: Vehicle) {
+    if (v.claim) this.claims.get(v.claim.node)?.delete(v.id);
+    v.claim = null;
+  }
+
+  /**
+   * Avanza la simulación. `visible(x, z)` dice si el jugador ve ese punto del suelo; sin él, nada se considera visible.
+   * Sólo se aparece en puntos no visibles; el que pasa de despawnDistance se recicla sólo si no se ve (o si pasa de
+   * despawnHardDistance), y el resto sigue circulando.
+   */
+  step(dt: number, obstacles: Obstacle[] = [], playerPos: { x: number; z: number } | null = null, visible?: Visibility) {
+    const vis = visible ?? HIDDEN;
     this.time += dt;
-    this.honks.length = 0;
     const grid = new Map<string, Vehicle[]>();
+    this.laneTail.clear();
+    this.laneTailId.clear();
     for (const v of this.vehicles) {
+      if (!v.active) continue;
       const k = `${Math.floor(v.x / 20)},${Math.floor(v.z / 20)}`;
       if (!grid.has(k)) grid.set(k, []);
       grid.get(k)!.push(v);
-    }
-    this.laneTail.clear();
-    for (const v of this.vehicles) {
       const p0 = v.path[0];
-      if (p0?.kind === 'lane') {
+      if (p0.kind === 'lane') {
         const tailS = v.s - v.length / 2;
-        if (tailS < (this.laneTail.get(p0.id) ?? Infinity)) this.laneTail.set(p0.id, tailS);
+        if (tailS < (this.laneTail.get(p0.id) ?? Infinity)) { this.laneTail.set(p0.id, tailS); this.laneTailId.set(p0.id, v.id); }
       }
     }
     const { a, b, s0, T, delta } = this.cfg.idm;
+    const far = this.cfg.despawnDistance ?? Infinity, hard = this.cfg.despawnHardDistance ?? Infinity;
+    let jammed = false;
     for (const v of this.vehicles) {
+      if (!v.active) continue;
       const lane = v.path[0].kind === 'lane' ? v.path[0] : (v.path[0] as Connector).to;
       const v0 = Math.max(2, lane.speed * v.v0f * (v.path[0].kind === 'conn' ? 0.55 : 1));
-      const { gap, leaderV, player } = this.gapAhead(v, grid, obstacles);
+      this.unclaim(v);   // gapAhead lo renueva si sigue esperando el mismo cruce
+      const { gap, leaderV, why, blk } = this.gapAhead(v, grid, obstacles);
+      v.why = why; v.blocker = blk; v.force = false;
       let acc = a * (1 - Math.pow(v.v / v0, delta));
       if (gap < Infinity) {
         const sStar = s0 + Math.max(0, v.v * T + (v.v * (v.v - leaderV)) / (2 * Math.sqrt(a * b)));
@@ -320,37 +442,91 @@ export class TrafficSim {
       acc = Math.max(-9, acc);
       v.braking = acc < -1;
       v.v = Math.max(0, v.v + acc * dt);
-      if (v.v < 0.3) v.wait += dt; else v.wait = 0;
+      if (v.v < 0.3) {
+        v.wait += dt;
+        // sólo cuenta la espera por el cruce (no el rojo, ni el jugador, ni el de adelante)
+        v.jam = why === 'junction' || why === 'exit' ? v.jam + dt : 0;
+      } else { v.wait = 0; v.jam = 0; }
       // pito si el jugador le cierra el paso
-      if (player && v.v < 0.5) {
+      if (why === 'player' && v.v < 0.5) {
         v.blockedByPlayer += dt;
-        if (v.blockedByPlayer > this.cfg.honkAfter && this.time - v.lastHonk > 4) { this.honks.push(v); v.lastHonk = this.time; }
+        if (v.blockedByPlayer > this.cfg.honkAfter && this.time - v.lastHonk > 4) {
+          this.honks.push(v); v.lastHonk = this.time;
+          if (this.honks.length > 64) this.honks.shift();   // nadie los consume: no crecer sin límite
+        }
       } else v.blockedByPlayer = 0;
 
       v.px = v.x; v.pz = v.z; v.ptx = v.tx; v.ptz = v.tz;
       v.s += v.v * dt;
-      while (v.path.length && v.s > v.path[0].poly.length) {
-        const done = v.path.shift()!;
-        v.s -= done.poly.length;
-        if (!v.path.length) break;
-      }
-      // la reserva se libera cuando la cola del vehículo ya salió del cruce
-      if (v.res && v.path[0] === v.res.to && v.s > v.length + 1) this.release(v);
-      // fuera de la burbuja de tráfico → reaparece cerca del jugador (fuera de su vista inmediata)
-      if (playerPos && this.cfg.despawnDistance && Math.hypot(v.x - playerPos.x, v.z - playerPos.z) > this.cfg.despawnDistance) {
-        this.release(v);
-        this.place(v, playerPos);
-        continue;
-      }
-      // salida del área o callejón sin continuación → reaparece en otro lugar
-      const node = v.path.length ? this.lg.nodes.get(v.path[0].kind === 'lane' ? (v.path[0] as Lane).to : (v.path[0] as Connector).node) : null;
-      if (!v.path.length || (v.path.length === 1 && v.path[0].kind === 'lane' && !(v.path[0] as Lane).outs.length) || (node?.exit && v.path[0].kind === 'lane' && v.path[0].poly.length - v.s < 2)) {
-        this.release(v);
-        if (!this.place(v, playerPos)) { v.path = [this.lg.lanes[0]]; v.s = 0; }
-        continue;
-      }
+      // el camino nunca queda vacío: en la última pieza (callejón sin salida) se detiene en el extremo
+      while (v.path.length > 1 && v.s > v.path[0].poly.length) v.s -= v.path.shift()!.poly.length;
+      if (v.s > v.path[0].poly.length) { v.s = v.path[0].poly.length; v.v = 0; }
+      // la reserva se libera cuando la cola del vehículo ya salió del cruce (o si el camino ya lo dejó atrás)
+      if (v.res && (v.path[0] === v.res.to ? v.s > v.length + 1 : !v.path.includes(v.res))) this.release(v);
       this.extend(v);
       this.updatePose(v);
+      const d = playerPos ? Math.hypot(v.x - playerPos.x, v.z - playerPos.z) : 0;
+      // fuera de la burbuja de tráfico → se recicla, pero sólo donde no se ve (o tras la niebla)
+      if (d > far && (d > hard || !vis(v.x, v.z))) { this.park(v); continue; }
+      // salida del área o callejón sin continuación → se recicla si no se ve; a la vista sigue (o espera en el
+      // extremo, ver gapAhead) hasta dejar de verse o quedar tras la niebla
+      if ((this.deadEnd(v) || this.outside(v.x, v.z)) && (d > hard || !vis(v.x, v.z))) { this.park(v); continue; }
+      if (v.jam > this.cfg.junctionWaitTimeout || v.wait > (this.cfg.stuckRecycle ?? Infinity)) jammed = true;
+    }
+    if (jammed) this.unjam(vis);
+    this.spawn(playerPos, vis);
+  }
+
+  /**
+   * Interbloqueos: sigue la cadena "quién espera a quién" desde cada vehículo atascado. Si cierra un ciclo (todos
+   * detenidos), el miembro que más lleva esperando el cruce (empate: menor id) recibe prelación tras junctionWaitTimeout;
+   * si el ciclo es sólo físico (nadie espera el cruce), o si la cadena acaba en un obstáculo que no es el jugador, tras
+   * stuckRecycle s se reciclan los que no se ven.
+   * Las cadenas que acaban en un semáforo, el jugador o un vehículo en marcha se resuelven solas.
+   */
+  private unjam(vis: Visibility) {
+    const V = this.vehicles, mark = this.mark, chain: number[] = [];
+    const timeout = this.cfg.junctionWaitTimeout, stuck = this.cfg.stuckRecycle ?? Infinity;
+    const recycle: Vehicle[] = [];
+    mark.fill(0);   // 0 sin visitar, -1 en la cadena actual, >0 raíz ya resuelta
+    for (const v0 of V) {
+      if (mark[v0.id] || !(v0.jam > timeout || v0.wait > stuck)) continue;
+      chain.length = 0;
+      let u = v0, root = ROOT_FREE;
+      for (;;) {
+        if (mark[u.id] > 0) { root = mark[u.id]; break; }
+        if (mark[u.id] < 0) {
+          root = ROOT_CYCLE;
+          const cyc = chain.slice(chain.indexOf(u.id)).map((id) => V[id]);
+          let pick: Vehicle | null = null;
+          for (const c of cyc) {
+            if ((c.why === 'junction' || c.why === 'exit') && (!pick || c.jam > pick.jam || (c.jam === pick.jam && c.id < pick.id))) pick = c;
+          }
+          if (pick) { if (pick.jam > timeout) pick.force = true; }
+          else for (const c of cyc) if (c.wait > stuck) recycle.push(c);
+          break;
+        }
+        mark[u.id] = -1; chain.push(u.id);
+        if (!u.active || u.v >= 0.3) break;
+        if (u.why === 'obstacle') { root = ROOT_OBSTACLE; break; }
+        if ((u.why !== 'leader' && u.why !== 'junction' && u.why !== 'exit') || u.blocker < 0) break;
+        u = V[u.blocker];
+      }
+      for (const id of chain) mark[id] = root;
+      if (root === ROOT_OBSTACLE) for (const id of chain) if (V[id].wait > stuck) recycle.push(V[id]);
+    }
+    for (const v of recycle) if (v.active && !vis(v.x, v.z)) this.park(v);
+  }
+
+  /** Reaparición de inactivos en puntos ocultos, con un presupuesto fijo de intentos por paso. */
+  private spawn(playerPos: { x: number; z: number } | null, vis: Visibility) {
+    const n = this.vehicles.length, budget = this.cfg.spawnTriesPerStep ?? 80;
+    this.spent = 0;
+    for (let k = 0; k < n && this.spent < budget; k++) {
+      const v = this.vehicles[(this.cursor + k) % n];
+      if (v.active) continue;
+      this.place(v, playerPos, this.cfg.respawnMinDistance, vis, Math.min(40, budget - this.spent));
+      this.cursor = (v.id + 1) % n;
     }
   }
 }

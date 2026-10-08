@@ -95,6 +95,11 @@ export class TrafficView {
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler(0, 0, 0, 'YXZ');
+  // reutilizados en cada frame (sin asignaciones por vehículo)
+  private pos = new THREE.Vector3();
+  private one = new THREE.Vector3(1, 1, 1);
+  private hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+  private p = { x: 0, z: 0, y: 0, yaw: 0, pitch: 0 };
 
   constructor(private sim: TrafficSim, private heightAt: (x: number, z: number) => number) {
     this.group.name = 'trafico';
@@ -119,26 +124,29 @@ export class TrafficView {
   }
 
   /** Pose de un vehículo interpolada entre el paso anterior y el actual. */
-  pose(id: number, t: number) {
+  pose(id: number, t: number, out = { x: 0, z: 0, y: 0, yaw: 0, pitch: 0 }) {
     const v = this.sim.vehicles[id];
     const x = v.px + (v.x - v.px) * t, z = v.pz + (v.z - v.pz) * t;
     const tx = v.ptx + (v.tx - v.ptx) * t, tz = v.ptz + (v.tz - v.ptz) * t;
-    const yaw = Math.atan2(-tx, -tz);
     const h = v.length * 0.4;
     const yf = this.heightAt(x + tx * h, z + tz * h), yb = this.heightAt(x - tx * h, z - tz * h);
-    return { x, z, y: (yf + yb) / 2, yaw, pitch: Math.atan2(yf - yb, 2 * h) };
+    out.x = x; out.z = z; out.y = (yf + yb) / 2; out.yaw = Math.atan2(-tx, -tz); out.pitch = Math.atan2(yf - yb, 2 * h);
+    return out;
   }
 
   update(t: number) {
+    const V = this.sim.vehicles;
     for (const { paint, fixed, ids } of this.meshes.values()) {
-      ids.forEach((id, i) => {
-        const p = this.pose(id, t);
+      for (let i = 0; i < ids.length; i++) {
+        // inactivo (esperando reaparecer fuera de la vista): escala cero
+        if (!V[ids[i]].active) { paint.setMatrixAt(i, this.hidden); fixed.setMatrixAt(i, this.hidden); continue; }
+        const p = this.pose(ids[i], t, this.p);
         this.e.set(p.pitch, p.yaw, 0);
         this.q.setFromEuler(this.e);
-        this.m4.compose(new THREE.Vector3(p.x, p.y, p.z), this.q, new THREE.Vector3(1, 1, 1));
+        this.m4.compose(this.pos.set(p.x, p.y, p.z), this.q, this.one);
         paint.setMatrixAt(i, this.m4);
         fixed.setMatrixAt(i, this.m4);
-      });
+      }
       paint.instanceMatrix.needsUpdate = true;
       fixed.instanceMatrix.needsUpdate = true;
     }

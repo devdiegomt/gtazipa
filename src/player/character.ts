@@ -1,5 +1,5 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
-import type { Physics } from '../physics';
+import { GROUP, groups, type Physics } from '../physics';
 import cfg from '../data/player.json';
 
 /** Personaje cinemático con el KinematicCharacterController de Rapier. Posición = pies. */
@@ -19,7 +19,9 @@ export class Character {
     this.body = phys.world.createRigidBody(
       R.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y + this.centerOffset, z),
     );
-    this.collider = phys.world.createCollider(R.ColliderDesc.capsule(cfg.capsule.halfHeight, cfg.capsule.radius), this.body);
+    // Grupo PLAYER: la cámara no lo ve; los choques no cambian (filtro 0xffff y el KCC consulta sin filtro).
+    this.collider = phys.world.createCollider(
+      R.ColliderDesc.capsule(cfg.capsule.halfHeight, cfg.capsule.radius).setCollisionGroups(groups(GROUP.PLAYER)), this.body);
     this.kcc = phys.world.createCharacterController(0.03);
     this.kcc.setUp({ x: 0, y: 1, z: 0 });
     this.kcc.setMaxSlopeClimbAngle((cfg.maxSlopeDeg * Math.PI) / 180);

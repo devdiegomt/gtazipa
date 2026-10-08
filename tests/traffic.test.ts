@@ -37,8 +37,10 @@ describe('tráfico', () => {
     run(sim, 120, (s) => {
       for (let i = 0; i < s.vehicles.length; i++) {
         const a = s.vehicles[i];
+        if (!a.active) continue;
         for (let j = i + 1; j < s.vehicles.length; j++) {
           const b = s.vehicles[j];
+          if (!b.active) continue;
           // mismo carril/pieza y sentido: separación entre extremos
           if (a.path[0] === b.path[0]) {
             const g = Math.abs(a.s - b.s) - (a.length + b.length) / 2;
@@ -63,6 +65,7 @@ describe('tráfico', () => {
       for (let i = 0; i < V.length; i++) {
         for (let j = i + 1; j < V.length; j++) {
           const a = V[i], b = V[j];
+          if (!a.active || !b.active) continue;
           const d = Math.hypot(a.x - b.x, a.z - b.z);
           if (d < Math.min(a.length, b.length) * 0.45 + 0.3 && d < (a.width + b.width) / 2) overlaps++;
         }
@@ -77,6 +80,7 @@ describe('tráfico', () => {
     const prev = new Map<number, { piece: unknown }>();
     run(sim, 180, (s) => {
       for (const v of s.vehicles) {
+        if (!v.active) { prev.delete(v.id); continue; }
         const before = prev.get(v.id);
         const cur = v.path[0];
         if (before && before.piece !== cur && (before.piece as { kind: string }).kind === 'lane') {
