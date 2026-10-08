@@ -6,11 +6,13 @@ import { startGame } from './harness.mjs';
 const OUT = 'docs/captures';
 mkdirSync(OUT, { recursive: true });
 const g = await startGame();
-const PORTRAIT = { CATEDRAL: { width: 800, height: 1000 } };
-const names = { N: 'norte', E: 'este', S: 'sur', W: 'oeste', AERIAL: 'vista_aerea', CATEDRAL: 'catedral', TORRES: 'torres', PLAZA: 'plaza_elevada' };
+const PORTRAIT = { CATEDRAL: { width: 800, height: 1000 }, NARINO: { width: 800, height: 1000 } };
+const names = { N: 'norte', E: 'este', S: 'sur', W: 'oeste', AERIAL: 'vista_aerea', CATEDRAL: 'catedral', TORRES: 'torres', PLAZA: 'plaza_elevada',
+  INDEPENDENCIA: 'parque_independencia', INDEPENDENCIA_AEREA: 'parque_independencia_aerea', NARINO: 'parque_independencia_narino',
+  TRAFICO: 'trafico_semaforo', CALLE: 'trafico_calle' };
 const only = process.argv.slice(2);
 try {
-  for (const dir of only.length ? only : ['N', 'E', 'S', 'W', 'AERIAL', 'CATEDRAL', 'TORRES', 'PLAZA']) {
+  for (const dir of only.length ? only : ['N', 'E', 'S', 'W', 'AERIAL', 'CATEDRAL', 'TORRES', 'PLAZA', 'INDEPENDENCIA', 'INDEPENDENCIA_AEREA', 'NARINO', 'TRAFICO', 'CALLE']) {
     await g.page.setViewportSize(PORTRAIT[dir] ?? { width: 1600, height: 900 });
     await g.open(`?capture=${dir}`);
     await g.page.waitForTimeout(2500); // sombras y mipmaps asentados

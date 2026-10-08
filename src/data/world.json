@@ -19,6 +19,14 @@
     ],
     "shadowMapSize": 2048,
     "shadowExtent": 60,
-    "_sunDoc": "Sol de la tarde desde el suroeste (como en la foto de referencia de la catedral)."
+    "_sunDoc": "Sol de la tarde desde el suroeste (como en la foto de referencia de la catedral).",
+    "dynamicResolution": {
+      "_doc": "Escala la resolución interna para sostener targetFps en PCs modestos (evaluación cada `interval` s sobre ~90 frames).",
+      "enabled": true,
+      "targetFps": 60,
+      "minPixelRatio": 0.6,
+      "maxPixelRatio": 2,
+      "interval": 1.5
+    }
   }
 }

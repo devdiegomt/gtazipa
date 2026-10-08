@@ -18,9 +18,19 @@ export interface WorldMeta {
     planters?: { osm: string; x: number; y: number; z: number }[];
   };
   landmarks: Landmark[];
+  parks?: ParkMeta[];
   files: { buildings: string; buildingsMeta: string; roads: string; corners: string; props: string };
   stats: Record<string, unknown>;
   attribution: string[];
+}
+
+export interface ParkMeta {
+  id: string; name: string; osm: string; area: number; ring: [number, number][];
+  plane: { a: number; bx: number; bz: number; slopeDeg: number; residualStd: number };
+  fountains: { osm: string; name: string | null; x: number; z: number; radius: number; ring: [number, number][] }[];
+  monuments: { osm: string; name: string | null; x: number; z: number; axis: [number, number]; front: [number, number];
+    length: number; width: number; ring: [number, number][] }[];
+  memorials: { osm: string; name: string | null; x: number; z: number }[];
 }
 
 export interface LandmarkModel {

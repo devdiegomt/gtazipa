@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedUtc": "2026-10-08T00:08:28+00:00",
+  "generatedUtc": "2026-10-08T04:40:50+00:00",
   "origin": {
     "lat": 5.023438235130531,
     "lon": -74.00400191227052,
@@ -259,35 +259,168 @@
       ]
     }
   ],
+  "parks": [
+    {
+      "id": "independencia",
+      "name": "Plaza / Parque de la Independencia",
+      "osm": "way/321152342",
+      "area": 4775.3,
+      "ring": [
+        [
+          -145.42,
+          -140.82
+        ],
+        [
+          -88.62,
+          -105.41
+        ],
+        [
+          -126.73,
+          -45.1
+        ],
+        [
+          -183.53,
+          -80.51
+        ],
+        [
+          -145.42,
+          -140.82
+        ]
+      ],
+      "plane": {
+        "a": -1.1807160475112513,
+        "bx": -0.002160745422718706,
+        "bz": -0.04383901722290131,
+        "slopeDeg": 2.513226686083572,
+        "residualStd": 0.3114313752730873
+      },
+      "fountains": [
+        {
+          "osm": "way/641689499",
+          "name": "Fuente",
+          "x": -172.77,
+          "z": -84.53,
+          "radius": 2.04,
+          "ring": [
+            [
+              -172.88,
+              -87.01
+            ],
+            [
+              -170.5,
+              -85.1
+            ],
+            [
+              -171.83,
+              -82.14
+            ],
+            [
+              -174.66,
+              -83.31
+            ],
+            [
+              -174.81,
+              -85.23
+            ],
+            [
+              -172.88,
+              -87.01
+            ]
+          ]
+        }
+      ],
+      "monuments": [
+        {
+          "osm": "way/641689226",
+          "name": "Homenaje a la Independencia",
+          "x": -130.66,
+          "z": -102.32,
+          "axis": [
+            -0.73598,
+            -0.677
+          ],
+          "front": [
+            -0.677,
+            0.73598
+          ],
+          "length": 22.62,
+          "width": 5.88,
+          "ring": [
+            [
+              -136.92,
+              -112.01
+            ],
+            [
+              -120.28,
+              -96.69
+            ],
+            [
+              -125.03,
+              -93.15
+            ],
+            [
+              -140.48,
+              -107.28
+            ],
+            [
+              -136.92,
+              -112.01
+            ]
+          ]
+        }
+      ],
+      "memorials": [
+        {
+          "osm": "node/6042679831",
+          "name": "Banderas de Suramérica",
+          "x": -132.75,
+          "z": -103.76
+        }
+      ]
+    }
+  ],
   "files": {
     "buildings": "buildings.glb",
     "buildingsMeta": "buildings.json",
     "roads": "roads.json",
+    "roadGraph": "roadgraph.json",
+    "roadMesh": "roads.glb",
     "corners": "corners.json",
     "props": "props.json"
   },
   "stats": {
-    "cubierta_dos_aguas": 1125,
+    "cubierta_dos_aguas": 1104,
     "balcones": 17,
-    "arquetipo:colonial": 299,
+    "arquetipo:colonial": 293,
     "fuente:osm": 945,
-    "altura_estimada": 1215,
-    "arquetipo:casa_tradicional": 872,
+    "altura_estimada": 1193,
+    "arquetipo:casa_tradicional": 856,
     "arquetipo:hito": 1,
     "arquetipo:comercial": 44,
     "altura_dato": 2,
     "arquetipo:moderno": 1,
-    "fuente:overture:Microsoft ML Buildings": 37,
-    "fuente:overture:Google Open Buildings": 235,
+    "fuente:overture:Microsoft ML Buildings": 28,
+    "fuente:overture:Google Open Buildings": 222,
+    "vias": {
+      "aristas": 226,
+      "nodos": 167,
+      "cruces": 85,
+      "semaforos_osm": 3,
+      "semaforos_estimados": 5,
+      "andenes_poligonos": 257,
+      "lineas": 228,
+      "cebras": 29
+    },
     "manzanas": 72,
-    "mallasEdificios": 73,
-    "triangulosEdificios": 28907,
+    "mallasEdificios": 72,
+    "triangulosEdificios": 28420,
     "tramosVia": 210,
     "esquinas": 86,
     "props": 4,
     "overture": {
-      "Microsoft ML Buildings": 112,
-      "Google Open Buildings": 580
+      "descartado_espacio_abierto_osm": 35,
+      "Microsoft ML Buildings": 98,
+      "Google Open Buildings": 559
     }
   },
   "sources": {
@@ -299,9 +432,9 @@
         5.03,
         -73.9976
       ],
-      "osm_base_timestamp": "2026-10-07T14:09:07Z",
-      "downloaded_utc": "2026-10-07T14:10:27+00:00",
-      "elements": 16388
+      "osm_base_timestamp": "2026-10-08T04:05:01Z",
+      "downloaded_utc": "2026-10-08T04:06:03+00:00",
+      "elements": 16443
     },
     "dem": {
       "downloaded_utc": "2026-10-07T14:04:48+00:00",

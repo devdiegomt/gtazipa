@@ -8,6 +8,8 @@ y `docs/INFORME.md`.
 ![Vista aérea del área jugable](docs/captures/vista_aerea.png)
 
 **Fase 2 — plaza y catedral:** ver [docs/INFORME_CATEDRAL.md](docs/INFORME_CATEDRAL.md).
+**Parque de la Independencia:** ver [docs/INFORME_PARQUES.md](docs/INFORME_PARQUES.md).
+**Vías, semáforos y tráfico:** ver [docs/INFORME_TRAFICO.md](docs/INFORME_TRAFICO.md).
 
 ![Catedral: foto vs. juego](docs/captures/comparacion_catedral.png)
 
@@ -38,9 +40,13 @@ Abre `http://localhost:5173`. Para forzar WebGL2: `http://localhost:5173/?webgl`
 | Espacio | Saltar |
 | E (o F) | Subirse / bajarse de la moto (aparece un aviso cuando estás cerca) |
 
-**En moto:** W acelerar · S frenar y, detenido, reversa · A/D girar · Espacio freno · E bajarse (a menos de 11 km/h).
-La moto está estacionada en la calle más cercana a la plaza (punto naranja en el minimapa). Velocidad máxima
-≈ 70 km/h; la cámara se coloca sola detrás de la moto si no mueves el ratón.
+**En moto:** W acelerar · S frenar (detenido y sostenida: empujar hacia atrás, las motos no tienen reversa) ·
+A/D inclinarse para girar · Espacio freno fuerte · E bajarse (a menos de 11 km/h) · M silenciar el sonido.
+La moto está estacionada en la calle más cercana a la plaza (punto naranja en el minimapa). Es una 125 cc tipo
+Honda CB125F: caja automática de 5 marchas, punta ≈ 95 km/h a la altitud de Zipaquirá. Agarra menos en adoquín
+que en asfalto (la superficie sale de OSM). La cámara se pone sola detrás de la moto si no mueves el ratón.
+
+![Moto en curva](docs/captures/moto_curva.png)
 
 ![Moto](docs/captures/moto.png)
 
@@ -79,6 +85,8 @@ Si una descarga falla, el pipeline **se detiene con error**: nunca rellena con d
 | `catedral.glb` | Catedral Diocesana modelada sobre su huella OSM (`pipeline/catedral.py`) |
 | `buildings.json` | Por edificio: fuente, arquetipo y regla aplicada, altura, `est` (altura estimada) |
 | `roads.json` | Red vial (polilíneas) para el minimapa y la lógica de juego |
+| `roadgraph.json` | Grafo vial para el tráfico: tramos entre cruces con carriles, sentido y velocidad; semáforos (OSM y estimados); cebras |
+| `roads.glb` | Andenes con sardinel y señalización horizontal (líneas, cebras, líneas de pare) |
 | `corners.json` | Esquinas reales (nodo OSM, lat/lon original, x/z) para el test de escala |
 | `props.json` | Árboles y postes de OSM (InstancedMesh) |
 
@@ -90,11 +98,16 @@ No hay que tocar la lógica para cambiar estos valores. Tras editarlos, ejecuta 
 - `buildings.json`: altura por piso y arquetipo, reglas de estimación de altura, reglas de arquetipo
   (radio del núcleo histórico, etiquetas, distancia a vías arteriales), altura del hito, colores.
 - `player.json`: velocidades, salto, gravedad, cápsula, pendiente máxima, escalón, cámara.
-- `vehicles.json`: moto (velocidad, aceleración, frenos, distancia entre ejes, giro máximo, aceleración lateral,
-  inclinación, cámara, colores, placa).
-- `world.json`: tamaño del área, margen y paso del terreno, suavizado del DEM, cielo, niebla, sol, sombras.
+- `vehicles.json`: moto (ficha técnica de referencia, curva de par, relaciones de caja, masas, CdA, frenos,
+  inclinación, adherencia por superficie, cámara, sonido, colores, placa).
+- `world.json`: tamaño del área, margen y paso del terreno, suavizado del DEM, cielo, niebla, sol, sombras,
+  resolución dinámica (objetivo de FPS).
 - `catedral.json`: dimensiones de la catedral (cuerpos, torres, vanos, cúpulas, cubiertas, colores), con su fuente.
 - `plaza.json`: rasante de la plaza, adoquín, materas con banca circular, palmas.
+- `trafico.json`: carriles, velocidades por clase, regla de semáforos estimados y tiempos del ciclo, señalización,
+  andenes, número y mezcla de vehículos, parámetros IDM, burbuja de tráfico.
+- `parques.json`: otros parques modelados (Parque de la Independencia): ids OSM de sus elementos, pavimento,
+  plataforma y escalinata, estatua, banderas y fuente, con la fuente de cada dato.
 
 ## Coordenadas
 
@@ -106,11 +119,12 @@ origen, de modo que las distancias del juego son distancias reales sobre el terr
 ## Pruebas
 
 ```bash
-npm test             # escala: distancia entre 3 pares de esquinas, juego vs. geodésica WGS84 de OSM (±1 m)
-npm run playtest     # Chrome real vía Playwright (16 pruebas): FPS, caminar, correr, saltar, colisiones, cámara, moto
+npm test             # escala (±1 m vs. OSM), física de la moto (125 cc real) y simulación de tráfico
+npm run playtest     # Chrome real vía Playwright (22 pruebas): FPS, caminar, colisiones, cámara, monumento, tráfico, moto
 npm run capture      # capturas: plaza N/E/S/O, aérea, catedral, torres, plaza elevada → docs/captures/
-npm run capture-moto # moto estacionada y montada → docs/captures/moto_*.png
-node scripts/capture.mjs CATEDRAL   # sólo una vista (N, E, S, W, AERIAL, CATEDRAL, TORRES, PLAZA)
+npm run capture-moto # moto estacionada, detenida con el pie en el suelo y en curva → docs/captures/moto_*.png
+node scripts/capture.mjs CATEDRAL   # sólo una vista (N, E, S, W, AERIAL, CATEDRAL, TORRES, PLAZA, INDEPENDENCIA, INDEPENDENCIA_AEREA, NARINO, TRAFICO, CALLE)
+npm run capture-parque              # primeros planos del Parque de la Independencia (fuente, estatua)
 npm run build        # comprobación de tipos + build de producción en dist/
 ```
 
@@ -120,15 +134,17 @@ ventana, `WEBGL=1` para probar el fallback WebGL2).
 ## Estructura
 
 ```
-pipeline/          Python: descarga + generación (config.py, fetch_*.py, build_world.py, catedral.py, run_all.py)
+pipeline/          Python: descarga + generación (config.py, fetch_*.py, build_world.py, catedral.py, vias.py, run_all.py)
 data/raw/          DEM local opcional (IGAC); no versionado
 data/cache/        descargas crudas; no versionado
 public/world/      mundo generado (lo carga el juego)
 src/               juego (TypeScript, three.js WebGPU, Rapier)
   data/            valores ajustables (JSON)
-  world/           terreno, edificios (fachadas TSL), catedral, plaza (materas instanciadas), props, cielo
+  world/           terreno, edificios (fachadas TSL), catedral, plaza (materas instanciadas), parques, props, cielo
   player/          personaje (KinematicCharacterController) y avatar procedural
-  vehicles/        moto: modelo low-poly y física arcade
+  traffic/         grafo de carriles, simulación (IDM, semáforos, reservas en cruces) y render instanciado
+  vehicles/        moto: dinámica (motoDynamics.ts, probada con vitest), integración con Rapier, modelo, superficies
+  audio/           sonido sintetizado del motor (WebAudio)
   camera.ts        cámara orbital con colisión (shape cast)
   ui/minimap.ts    minimapa
 tests/             test de escala (vitest)

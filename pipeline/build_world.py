@@ -40,6 +40,7 @@ from shapely.strtree import STRtree
 
 import shapely
 import catedral as cat_model
+import vias as vias_model
 from config import (CACHE, CATHEDRAL_WAY, EPSG_UTM, GAME_DATA, OUT, PLAZA_BOUNDARY_WAYS)
 
 ROADS_CFG = json.loads((GAME_DATA / "roads.json").read_text(encoding="utf-8"))
@@ -47,6 +48,8 @@ BLD_CFG = json.loads((GAME_DATA / "buildings.json").read_text(encoding="utf-8"))
 WORLD_CFG = json.loads((GAME_DATA / "world.json").read_text(encoding="utf-8"))
 PLAZA_CFG = json.loads((GAME_DATA / "plaza.json").read_text(encoding="utf-8"))
 CAT_CFG = json.loads((GAME_DATA / "catedral.json").read_text(encoding="utf-8"))
+TRAFFIC_CFG = json.loads((GAME_DATA / "trafico.json").read_text(encoding="utf-8"))
+PARKS_CFG = {k: v for k, v in json.loads((GAME_DATA / "parques.json").read_text(encoding="utf-8")).items() if not k.startswith("_")}
 
 HALF = WORLD_CFG["area"]["size"] / 2.0
 T_HALF = HALF + WORLD_CFG["area"]["terrainMargin"]
@@ -156,33 +159,95 @@ class Terrain:
         return map_coordinates(self.heights, [(z + T_HALF) / T_STEP, (x + T_HALF) / T_STEP], order=1, mode="nearest")
 
 
-def flatten_terrain(terrain: "Terrain", plaza_game: Polygon, cat_game: Polygon):
-    """Sustituye el DSM dentro de la plaza y la catedral por un plano ajustado al DEM en el borde de la plaza."""
-    cfg = PLAZA_CFG["terrain"]
-    ring = plaza_game.exterior
+def fit_plane(terrain: "Terrain", poly: Polygon):
+    """Plano por mínimos cuadrados ajustado al DEM a lo largo del borde de un polígono (coords del juego)."""
+    ring = poly.exterior
     samples = [ring.interpolate(d) for d in np.arange(0, ring.length, 2.0)]
-    sx = np.array([p.x for p in samples]); sz = np.array([p.y for p in samples])
+    sx = np.array([q.x for q in samples]); sz = np.array([q.y for q in samples])
     sy = terrain.y(sx, sz)
     A = np.c_[np.ones_like(sx), sx, sz]
     coef, *_ = np.linalg.lstsq(A, sy, rcond=None)
-    resid = sy - A @ coef
-    region = unary_union([plaza_game.buffer(cfg["buffer"]), cat_game.buffer(cfg["buffer"])])
+    return coef, float(np.std(sy - A @ coef))
+
+
+def apply_plane(terrain: "Terrain", coef, region, blend: float):
     n = terrain.n
     xs = -T_HALF + np.arange(n) * T_STEP
     X, Z = np.meshgrid(xs, xs)
     d = shapely.distance(region, shapely.points(X.ravel(), Z.ravel())).reshape(n, n)
-    t = np.clip(1 - d / cfg["blend"], 0, 1)
+    t = np.clip(1 - d / blend, 0, 1)
     w = t * t * (3 - 2 * t)
     planeH = coef[0] + coef[1] * X + coef[2] * Z
     terrain.heights = (terrain.heights * (1 - w) + planeH * w).astype(np.float32)
+
+
+def flatten_terrain(terrain: "Terrain", plaza_game: Polygon, cat_game: Polygon):
+    """Sustituye el DSM dentro de la plaza y la catedral por un plano ajustado al DEM en el borde de la plaza."""
+    cfg = PLAZA_CFG["terrain"]
+    coef, resid = fit_plane(terrain, plaza_game)
+    region = unary_union([plaza_game.buffer(cfg["buffer"]), cat_game.buffer(cfg["buffer"])])
+    apply_plane(terrain, coef, region, cfg["blend"])
     # Re-cero: el centro de la plaza (origen) vuelve a quedar en y = 0.
     terrain.heights -= np.float32(coef[0])
     terrain.h0 += float(coef[0])
     coef[0] = 0.0
     slope = math.degrees(math.atan(math.hypot(coef[1], coef[2])))
     log(f"plaza aplanada: plano y = {coef[0]:.2f} + {coef[1]:.4f}·x + {coef[2]:.4f}·z (pendiente {slope:.1f}°, "
-        f"residuo DEM en el borde ±{np.std(resid):.2f} m)")
-    return {"a": float(coef[0]), "bx": float(coef[1]), "bz": float(coef[2]), "slopeDeg": slope, "residualStd": float(np.std(resid))}
+        f"residuo DEM en el borde ±{resid:.2f} m)")
+    return {"a": float(coef[0]), "bx": float(coef[1]), "bz": float(coef[2]), "slopeDeg": slope, "residualStd": resid}
+
+
+def flatten_park(terrain: "Terrain", park_game: Polygon, cfg: dict, name: str):
+    coef, resid = fit_plane(terrain, park_game)
+    apply_plane(terrain, coef, park_game.buffer(cfg["buffer"]), cfg["blend"])
+    slope = math.degrees(math.atan(math.hypot(coef[1], coef[2])))
+    log(f"{name}: rasante plana (pendiente {slope:.1f}°, residuo DEM en el borde ±{resid:.2f} m)")
+    return {"a": float(coef[0]), "bx": float(coef[1]), "bz": float(coef[2]), "slopeDeg": slope, "residualStd": resid}
+
+
+def park_export(osm: "OSM", frame: "Frame", key: str, cfg: dict, plane: dict):
+    """Geometría del parque y de sus elementos (OSM) en coordenadas del juego."""
+    def ring_of(wid):
+        ll = way_coords_ll(osm, osm.ways[wid])
+        x, n = frame.xn([q[0] for q in ll], [q[1] for q in ll])
+        return orient(Polygon(list(zip(x, -n))), 1.0)
+    park = ring_of(cfg["osmPark"])
+    out = {"id": key, "name": cfg["name"], "osm": f"way/{cfg['osmPark']}", "area": round(park.area, 1),
+           "ring": [[round(a, 2), round(b, 2)] for a, b in park.exterior.coords], "plane": plane,
+           "fountains": [], "monuments": [], "memorials": []}
+    for wid in cfg.get("fountains", []):
+        if wid in osm.ways:
+            f = ring_of(wid)
+            out["fountains"].append({"osm": f"way/{wid}", "name": osm.ways[wid]["tags"].get("name"),
+                                     "x": round(f.centroid.x, 2), "z": round(f.centroid.y, 2),
+                                     "radius": round(math.sqrt(f.area / math.pi), 2),
+                                     "ring": [[round(a, 2), round(b, 2)] for a, b in f.exterior.coords]})
+    for wid in cfg.get("monuments", []):
+        if wid in osm.ways:
+            m = ring_of(wid)
+            q = np.asarray(m.minimum_rotated_rectangle.exterior.coords)[:4]
+            e0, e1 = q[1] - q[0], q[2] - q[1]
+            ax = e0 if np.linalg.norm(e0) >= np.linalg.norm(e1) else e1
+            L, W = max(np.linalg.norm(e0), np.linalg.norm(e1)), min(np.linalg.norm(e0), np.linalg.norm(e1))
+            ax = ax / np.linalg.norm(ax)
+            pc = park.centroid
+            # lado "frontal" de la plataforma: el que mira al centro del parque
+            nrm = np.array([-ax[1], ax[0]])
+            if np.dot(nrm, np.array([pc.x - m.centroid.x, pc.y - m.centroid.y])) < 0:
+                nrm = -nrm
+            out["monuments"].append({"osm": f"way/{wid}", "name": osm.ways[wid]["tags"].get("name"),
+                                     "x": round(m.centroid.x, 2), "z": round(m.centroid.y, 2),
+                                     "axis": [round(float(ax[0]), 5), round(float(ax[1]), 5)],
+                                     "front": [round(float(nrm[0]), 5), round(float(nrm[1]), 5)],
+                                     "length": round(float(L), 2), "width": round(float(W), 2),
+                                     "ring": [[round(a, 2), round(b, 2)] for a, b in m.exterior.coords]})
+    for nid in cfg.get("memorials", []):
+        nd = osm.nodes.get(nid)
+        if nd:
+            x, n = frame.xn(nd["lon"], nd["lat"])
+            out["memorials"].append({"osm": f"node/{nid}", "name": nd.get("tags", {}).get("name"),
+                                     "x": round(float(x), 2), "z": round(float(-n), 2)})
+    return out
 
 
 def build_cathedral(cat_map: Polygon, terrain: "Terrain"):
@@ -577,7 +642,7 @@ def collect_buildings(osm: OSM, frame: Frame):
     return out
 
 
-def collect_overture(frame: Frame, tree_osm):
+def collect_overture(frame: Frame, tree_osm, open_spaces=None):
     p = CACHE / "overture_buildings.geojson"
     if not p.exists():
         log("AVISO: sin data/cache/overture_buildings.geojson; sólo OSM")
@@ -603,6 +668,10 @@ def collect_overture(frame: Frame, tree_osm):
         if not parts:
             continue
         geom = unary_union(parts)
+        # Espacios abiertos mapeados en OSM (parques, plazas): las detecciones ML ahí son falsos positivos
+        if open_spaces is not None and open_spaces.contains(geom.representative_point()):
+            counts["descartado_espacio_abierto_osm"] += 1
+            continue
         overlap = sum(geom.intersection(tree_osm.geometries[i]).area for i in tree_osm.query(geom))
         if overlap > max_ov * geom.area:
             counts["descartado_solape_osm"] += 1
@@ -698,6 +767,13 @@ def main() -> int:
     plane = None
     if PLAZA_CFG["terrain"]["flatten"]:
         plane = flatten_terrain(terrain, plaza_game, cat_game)
+    park_planes = {}
+    park_ways = set()
+    for key, pcfg in PARKS_CFG.items():
+        ll = way_coords_ll(osm, osm.ways[pcfg["osmPark"]])
+        px_, pn_ = frame.xn([q[0] for q in ll], [q[1] for q in ll])
+        park_planes[key] = flatten_park(terrain, Polygon(list(zip(px_, -pn_))), pcfg["terrain"], pcfg["name"])
+        park_ways.add(pcfg["osmPark"])
     terrain.heights.astype("<f4").tofile(OUT / "terrain.bin")
 
     area_box = box(-HALF, -HALF, HALF, HALF)
@@ -744,6 +820,8 @@ def main() -> int:
     green = []
     for w in osm.ways.values():
         t = w.get("tags", {})
+        if w["id"] in park_ways:
+            continue
         if (t.get("leisure") in ("park", "garden", "pitch", "playground") or t.get("landuse") in (
                 "grass", "meadow", "forest", "recreation_ground")) and w["nodes"][0] == w["nodes"][-1]:
             ll = way_coords_ll(osm, w)
@@ -755,6 +833,10 @@ def main() -> int:
     gp.fill(unary_union(sidewalks).intersection(terrain_box), surf["sidewalk"])
     ped_areas = [Polygon(r["geom"].coords) for r in road_lines if r["area"]]
     gp.fill(unary_union(ped_areas + [plaza]).intersection(terrain_box), surf["plaza"])
+    for key, pcfg in PARKS_CFG.items():
+        ll = way_coords_ll(osm, osm.ways[pcfg["osmPark"]])
+        px_, pn_ = frame.xn([q[0] for q in ll], [q[1] for q in ll])
+        gp.fill(Polygon(list(zip(px_, pn_))), pcfg["paving"]["textureColor"])
     order = ["track", "path", "footway", "cycleway", "steps", "pedestrian", "service", "living_street",
              "residential", "unclassified", "tertiary", "secondary", "primary"]
     for hw in order:
@@ -811,7 +893,18 @@ def main() -> int:
         if abs(rp.x) <= HALF and abs(rp.y) <= HALF:
             clean.append(b)
     osm_tree = STRtree([b["geom"] for b in clean])
-    ov, ov_counts = collect_overture(frame, osm_tree)
+    excl = BLD_CFG["geometry"]["overtureExcludeOpenSpaces"]
+    open_polys = [plaza]
+    for w in osm.ways.values():
+        t = w.get("tags", {})
+        if w["nodes"][0] != w["nodes"][-1] or len(w["nodes"]) < 4 or "building" in t:
+            continue
+        if t.get("leisure") in excl["leisure"] or t.get("place") in excl["place"] or (
+                t.get("highway") in excl["highway"] and t.get("area") == "yes"):
+            ll = way_coords_ll(osm, w)
+            x, n = frame.xn([q[0] for q in ll], [q[1] for q in ll])
+            open_polys.append(make_valid(Polygon(list(zip(x, n)))))
+    ov, ov_counts = collect_overture(frame, osm_tree, unary_union(open_polys))
     for b in ov:
         parts = [p.simplify(gcfg["simplify"]) for p in polygon_parts(make_valid(b["geom"]))]
         parts = [p for p in parts if p.is_valid and p.area >= gcfg["minArea"]]
@@ -937,6 +1030,27 @@ def main() -> int:
                 prims.append((mat, *arr))
         meshes.append((blk, prims))
     write_glb(OUT / "buildings.glb", meshes, material_names)
+
+    # ---------------- vías: grafo, semáforos, andenes con sardinel y señalización
+    park_map = []
+    for pcfg in PARKS_CFG.values():
+        ll = way_coords_ll(osm, osm.ways[pcfg["osmPark"]])
+        px_, pn_ = frame.xn([q[0] for q in ll], [q[1] for q in ll])
+        park_map.append(Polygon(list(zip(px_, pn_))))
+    exclude = unary_union(park_map + [cat_map.buffer(3.0), paved.buffer(-1.6)])
+    bunion = unary_union([b["geom"] for b in clean if not b.get("landmark")])
+    graph, rmesh, rstats = vias_model.build(osm, frame, terrain, road_lines, TRAFFIC_CFG, HALF, T_HALF, bunion, exclude, None)
+    (OUT / "roadgraph.json").write_text(json.dumps(graph, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    rnames = sorted(rmesh.d)
+    rprims = []
+    for mat in rnames:
+        m = rmesh.d[mat]
+        pos = np.asarray(m["p"], np.float32)
+        rprims.append((mat, pos, np.asarray(m["n"], np.float32), np.asarray(m["uv"], np.float32),
+                       np.ones((len(pos), 3), np.float32), np.asarray(m["i"], np.uint32)))
+    write_glb(OUT / "roads.glb", [("vias", rprims)], rnames)
+    log(f"vías: {rstats}")
+    stats["vias"] = rstats
     log(f"buildings.glb: {len(meshes)} mallas (manzanas), {tri_total} triángulos")
 
     # ---------------- props (árboles y postes OSM)
@@ -985,7 +1099,9 @@ def main() -> int:
                   "planters": [{"osm": p["osm"], "x": p["x"], "z": p["z"], "y": p["y"]} for p in props
                                if p["kind"] == "tree" and plaza.buffer(1.0).contains(Point(p["x"], -p["z"]))]},
         "landmarks": landmark_out,
+        "parks": [park_export(osm, frame, k, c, park_planes[k]) for k, c in PARKS_CFG.items()],
         "files": {"buildings": "buildings.glb", "buildingsMeta": "buildings.json", "roads": "roads.json",
+                  "roadGraph": "roadgraph.json", "roadMesh": "roads.glb",
                   "corners": "corners.json", "props": "props.json"},
         "stats": dict(stats) | {"manzanas": len(blocks), "mallasEdificios": len(meshes), "triangulosEdificios": tri_total,
                                 "tramosVia": len(roads), "esquinas": len(corners), "props": len(props),

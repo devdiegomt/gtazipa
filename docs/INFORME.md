@@ -120,3 +120,45 @@ Verificación (`npm run playtest`, 16/16 en WebGPU y en WebGL2):
 - Bajarse a 1.1 m de la moto, en un lugar libre (la posición se comprueba con una consulta de intersección).
 
 Todo a 107–118 FPS.
+
+
+## Anexo — Moto realista (fase 4)
+
+La moto arcade de la fase 3 se reemplaza por una con física basada en una moto real.
+
+**Referencia:** Honda CB125F (generación 2021 en adelante), una 125 cc muy común en Colombia: 10,6 CV a 7.500 rpm,
+10,9 Nm a 6.000 rpm, 117 kg en orden de marcha, 1.280 mm entre ejes, 5 marchas por cadena y unos 100 km/h de punta.
+Las cifras vienen de las fichas de [1000ps](https://www.1000ps.com/es-es/comparativa/402722/honda-cb125f-2025-vs-honda-cb125f-2023),
+[inmoto](https://www.inmoto.it/listino-nuovo/marche/honda/cb125f) y [Galgo Colombia](https://www.galgo.com/co/motos/CO719-honda-cb-125-f).
+Las fuentes difieren según el año y el país (la versión colombiana declara 8,4 hp y 4 marchas); se usó la ficha
+europea reciente.
+
+| Aspecto | Qué es |
+|---|---|
+| Motor y caja | **Dato** (par y potencia máximos, masa, entre ejes, número de marchas) + **estimado** (curva de par intermedia, relaciones de cada marcha, desarrollo final, CdA = 0,52 m², reparto de pesos). Caja automática con tiempo de cambio y embrague que patina al arrancar; limitador a 9.500 rpm |
+| Altitud | **Calculado** con la atmósfera estándar a la cota real del mundo (2.616 m): densidad del aire 0,946 kg/m³ y potencia al 77 %. A velocidad máxima se compensa casi del todo, porque también baja el arrastre: 96 km/h a nivel del mar y 95 en Zipaquirá |
+| Adherencia | Según la **superficie OSM** de la vía bajo la moto (`surface=*` o la de su clase): asfalto μ = 0,85, adoquín de piedra (`sett`) μ = 0,55, ladrillo de la plaza μ = 0,65. Los valores de μ son **típicos en seco (estimados)** |
+| Frenos | Limitados por la adherencia de la superficie, con presión progresiva |
+| Giro | Por **inclinación**, como una moto real: ω = g·tan(φ)/v. La inclinación máxima la fija la adherencia (39° en asfalto, 28° en adoquín). Círculo de fricción: frenar en plena curva o cambiar a una superficie con menos agarre hace que la moto se abra (derrape). A baja velocidad gira con el manubrio y el jinete apoya el pie |
+| Suspensión | Cabeceo por transferencia de carga (se hunde al frenar, se levanta al acelerar) |
+| Modelo | **Procedural** con medidas reales: ruedas de 18", lanzamiento de 26° (la dirección gira sobre su eje inclinado), cuna de acero, motor con aletas, escape cromado con protector térmico, cadena al lado izquierdo, doble amortiguador con resorte, disco delantero con pinza, tablero LCD que muestra velocidad, marcha y rpm, espejos, direccionales, placa amarilla, pata lateral y pintura con barniz |
+| Jinete | Rodillas y codos con **IK analítica de dos huesos** hacia posapiés y puños; **casco integral** al montar; pie izquierdo en el suelo al detenerse |
+| Sonido | **Sintetizado** con WebAudio (sin archivos): monocilíndrico de 4 tiempos a rpm/120 Hz con armónicos, admisión, viento, derrape, golpes y arranque. M lo silencia |
+
+**Verificación**
+- `npm test`: 13 pruebas, 7 de ellas de la moto contra valores reales:
+  - 0–50 km/h en 6,0 s;
+  - frenada desde 50 km/h: 13,2 m en asfalto y 18,3 m en adoquín;
+  - inclinación máxima de 39° en asfalto y 28° en adoquín;
+  - equilibrio en curva v²/R = g·tan φ;
+  - derrape al frenar en curva;
+  - sin reversa.
+- `npm run playtest`: 17/17 en WebGPU y WebGL2. En Chrome: 48 km/h en 4,5 s en 3.ª, giro con 39° de inclinación,
+  frenado, choque contra la catedral sin atravesarla, y subir y bajarse de la moto.
+
+**Rendimiento:** la moto pasó de unos 175 a unos 35 draw calls al fusionar las piezas por material dentro de cada
+parte móvil. Sólo las piezas grandes proyectan sombra. Medido con carga externa en la máquina (otro programa usando
+la GPU): 80–87 FPS en WebGPU.
+
+**Para una moto aún más fiel:** con un modelo 3D con licencia libre (por ejemplo, un `.glb` CC-BY de Sketchfab que
+descargues con tu cuenta), el juego puede usarlo en vez del procedural conservando la física y los anclajes del jinete.

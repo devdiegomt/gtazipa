@@ -84,7 +84,30 @@ sólo registros cuya fuente **no** es OSM y que se solapan con edificios OSM en 
 
 Las alturas que se derivaron de la foto quedan marcadas como **estimadas** en `src/data/catedral.json`.
 
-## 6. Imágenes satelitales / Street View
+## 6. Parque de la Independencia
+
+| Fuente | Uso | Licencia |
+|---|---|---|
+| OSM: way 321152342 (parque), way 641689226 ("Homenaje a la Independencia"), way 641689499 ("Fuente"), node 6042679831 ("Banderas de Suramérica"). Consulta Overpass ampliada (`water`, `area=yes` con nombre, `historic`, `tourism=artwork`, bancas/fuentes, astas); base OSM 2026-10-08T04:05:01Z, descargada el 2026-10-08 04:06 UTC | Geometría del parque y de sus elementos | ODbL 1.0, © OpenStreetMap contributors |
+| Fichas de recorridos turísticos ([Expedia](https://www.expedia.com/things-to-do/zipaquira-salt-cathedral-and-historic-town-tour.a49244538.activity-details), [Travelocity](https://www.travelocity.com/things-to-do/zipaquira-salt-cathedral-shared-tour-walking-tour.a46066031.activity-details), [Trip.com](https://ca.trip.com/things-to-do/detail/63206600)) y el blog [nomadicniko.com](https://nomadicniko.com/2019/06/09/zipaquira/), consultados el 2026-10-08 | Hechos: inaugurada en 2010 sobre la antigua plaza de mercado, estatua de Antonio Nariño con un libro, banderas de los países liberados por Bolívar. No son fuentes oficiales | Sólo hechos, sin reproducir texto |
+
+Detalles estimados (suelo, diseño de la estatua y la fuente, disposición de las banderas): ver `docs/INFORME_PARQUES.md`.
+
+**Corrección de datos:** los edificios Overture no-OSM con el centroide dentro de un espacio abierto mapeado en OSM se
+descartan por ser falsos positivos de detección automática (`overtureExcludeOpenSpaces` en `src/data/buildings.json`).
+Fueron 35 en la caja de descarga.
+
+## 7. Vías y tráfico
+
+| Fuente | Uso | Licencia |
+|---|---|---|
+| OSM (mismo extracto): `oneway`, `lanes`, `maxspeed`, `surface` de las vías; `highway=traffic_signals` (4 nodos en el área), `highway=crossing` (1) y `highway=bus_stop` (2) | Sentidos, carriles, velocidades, semáforos y pasos peatonales reales | ODbL 1.0 |
+| M. Treiber, A. Hennecke, D. Helbing, *Congested traffic states in empirical observations and microscopic simulations*, Phys. Rev. E 62 (2000) | Modelo de seguimiento IDM (ecuaciones, no código) | Artículo citado |
+
+Lo estimado (semáforos inferidos, carriles y velocidades por defecto, andenes, mezcla de vehículos) está marcado en
+`public/world/roadgraph.json` (`source`, `lanesSource`, `speedSource`) y descrito en `docs/INFORME_TRAFICO.md`.
+
+## 8. Imágenes satelitales / Street View
 
 No se usaron.
 

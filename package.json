@@ -12,7 +12,8 @@
     "capture": "node scripts/capture.mjs",
     "pipeline": "cd pipeline && .venv\\Scripts\\python run_all.py",
     "playtest": "node scripts/playtest.mjs",
-    "capture-moto": "node scripts/capture-moto.mjs"
+    "capture-moto": "node scripts/capture-moto.mjs",
+    "capture-parque": "node scripts/capture-parque.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

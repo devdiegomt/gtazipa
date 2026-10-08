@@ -35,6 +35,12 @@ def build_query(s: float, w: float, n: float, e: float) -> str:
   node["natural"="tree"]({bb});
   node["highway"="street_lamp"]({bb});
   way["natural"="tree_row"]({bb});
+  way["natural"="water"]({bb});
+  way["area"="yes"]["name"]({bb});
+  nwr["historic"]({bb});
+  nwr["tourism"="artwork"]({bb});
+  nwr["amenity"~"^(bench|fountain|waste_basket|drinking_water)$"]({bb});
+  node["man_made"="flagpole"]({bb});
 );
 (._;>;);
 out body;

@@ -27,7 +27,7 @@ export interface MotoEnv {
   slopeSin: number;      // seno de la pendiente en la dirección de marcha (+ = subida)
 }
 
-export interface MotoInput { throttle: number; brake: number; steer: number }
+export interface MotoInput { throttle: number; brake: number; steer: number; /** S sostenida detenida: empujar hacia atrás */ reverse?: boolean }
 
 const G = 9.81;
 const DEG = Math.PI / 180;
@@ -124,7 +124,7 @@ export class MotoDynamics {
     let nv = v + a * dt;
     if (v >= 0 && nv < 0) nv = 0;                     // los frenos no hacen ir hacia atrás
     // Detenida con freno sostenido: se empuja hacia atrás con los pies (las motos no tienen reversa)
-    if (Math.abs(v) < 0.3 && bTarget > 0 && throttle === 0) this.stoppedBrakeTime += dt; else this.stoppedBrakeTime = 0;
+    if (Math.abs(v) < 0.3 && inp.reverse && throttle === 0) this.stoppedBrakeTime += dt; else this.stoppedBrakeTime = 0;
     if (this.stoppedBrakeTime > 0.5) nv = -s.pushSpeed;
     else if (v < 0) nv = Math.min(0, v + 3 * dt);    // deja de empujar
     this.aLong = (nv - v) / Math.max(dt, 1e-6);

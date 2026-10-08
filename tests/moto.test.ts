@@ -14,7 +14,7 @@ const zipa = atmosphere(world.origin.elevation);
 const env = (surface: string, atm = zipa): MotoEnv => ({ ...surf[surface], ...atm, slopeSin: 0 });
 const DT = 1 / 60;
 
-function run(m: MotoDynamics, seconds: number, inp: { throttle: number; brake: number; steer: number }, e: MotoEnv, until?: (m: MotoDynamics) => boolean) {
+function run(m: MotoDynamics, seconds: number, inp: { throttle: number; brake: number; steer: number; reverse?: boolean }, e: MotoEnv, until?: (m: MotoDynamics) => boolean) {
   let t = 0, dist = 0;
   while (t < seconds) {
     m.step(DT, inp, e);
@@ -97,7 +97,10 @@ describe('moto 125 cc', () => {
 
   it('no tiene reversa: detenida y con freno, se empuja hacia atrás a paso de peatón', () => {
     const m = new MotoDynamics(spec);
-    run(m, 1.5, { throttle: 0, brake: 1, steer: 0 }, env('asphalt'));
+    run(m, 1.5, { throttle: 0, brake: 1, steer: 0, reverse: true }, env('asphalt'));
+    const m2 = new MotoDynamics(spec);
+    run(m2, 1.5, { throttle: 0, brake: 1, steer: 0 }, env('asphalt'));
+    expect(m2.v).toBe(0);  // con el freno (Espacio) se queda quieta
     expect(m.v).toBeLessThan(0);
     expect(m.v).toBeGreaterThan(-1.5);
   });

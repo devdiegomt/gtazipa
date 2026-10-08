@@ -44,3 +44,6 @@ body.capture #help, body.capture #hud #stats { display: none; }
   background: rgba(0, 0, 0, 0.6); padding: 8px 16px; border-radius: 8px; font-size: 15px; font-weight: 600;
   pointer-events: none;
 }
+#speedo .rpm { width: 170px; height: 6px; margin: 6px 0 4px auto; background: rgba(0, 0, 0, 0.45); border-radius: 3px; overflow: hidden; }
+#speedo .rpm i { display: block; height: 100%; }
+#speedo span + span { margin-top: 2px; font-size: 11px; letter-spacing: 1px; }

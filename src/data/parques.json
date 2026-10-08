@@ -1,0 +1,76 @@
+{
+  "_doc": "Parques modelados en detalle además de la Plaza de los Comuneros. Geometría: OSM. Lo que no está en los datos va marcado como estimado.",
+  "independencia": {
+    "name": "Plaza / Parque de la Independencia",
+    "osmPark": 321152342,
+    "fountains": [
+      641689499
+    ],
+    "monuments": [
+      641689226
+    ],
+    "memorials": [
+      6042679831
+    ],
+    "sources": {
+      "geometria": "OSM: parque way 321152342 (leisure=park), 'Homenaje a la Independencia' way 641689226 (area=yes), 'Fuente' way 641689499 (natural=water), 'Banderas de Suramérica' node 6042679831 (historic=memorial)",
+      "historia": "Fichas de recorridos turísticos (Expedia/Travelocity/Trip.com, no oficiales): inaugurada en 2010 donde funcionaba la antigua plaza de mercado; en el centro, estatua de Antonio Nariño con un libro (los Derechos del Hombre) y una cápsula del tiempo debajo; las banderas aluden a los países liberados por Bolívar.",
+      "estimado": "Superficie (adoquín de concreto), disposición de la estatua y las banderas sobre la plataforma, alturas, diseño de la fuente y del bronce: no hay fotos ni datos; valores típicos marcados como estimados."
+    },
+    "terrain": {
+      "buffer": 2.5,
+      "blend": 12.0
+    },
+    "paving": {
+      "_doc": "ESTIMADO: adoquín de concreto gris (habitual en plazas renovadas hacia 2010). Cambia aquí si tienes fotos.",
+      "base": "#a7a29a",
+      "alt": "#8f8a83",
+      "band": "#c9a77f",
+      "bandSpacing": 6.0,
+      "bandWidth": 0.4,
+      "paverLength": 0.2,
+      "paverWidth": 0.1,
+      "curbHeight": 0.14,
+      "textureColor": "#9e9890"
+    },
+    "platform": {
+      "height": 0.42,
+      "rise": 0.15,
+      "tread": 0.35,
+      "cladding": "#6d6a66",
+      "top": "#8b8780",
+      "_doc": "Plataforma nivelada (huella OSM) con escalinata perimetral; altura y gradas ESTIMADAS."
+    },
+    "statue": {
+      "name": "Antonio Nariño",
+      "_doc": "Bronce de pie sosteniendo un libro (los Derechos del Hombre que tradujo en 1793). Alturas ESTIMADAS.",
+      "figureHeight": 2.4,
+      "pedestalHeight": 2.2,
+      "pedestalWidth": 1.5,
+      "bronze": "#5d4b33",
+      "patina": "#4f6b5c",
+      "stone": "#7a766f"
+    },
+    "flags": {
+      "_doc": "Países liberados por Bolívar (naciones bolivarianas). Orden, número de astas y altura: ESTIMADOS.",
+      "countries": [
+        "VE",
+        "EC",
+        "CO",
+        "PE",
+        "BO"
+      ],
+      "windFromDeg": 75,
+      "poleHeight": 9.0,
+      "flagWidth": 2.1,
+      "flagHeight": 1.4
+    },
+    "fountain": {
+      "rimHeight": 0.5,
+      "rimWidth": 0.35,
+      "water": "#3d6f86",
+      "jetHeight": 1.6,
+      "stone": "#8f8a80"
+    }
+  }
+}

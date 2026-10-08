@@ -28,7 +28,7 @@ try {
   // FPS en reposo (vista por defecto desde la plaza)
   await wait(4000);
   let s = await g.state();
-  check('FPS >= 55', s.fps >= 55, `${Number(s.fps).toFixed(1)} FPS (${s.backend}), ${s.drawCalls} draw calls de edificios`);
+  check('FPS >= 55', s.fps >= 55, `${Number(s.fps).toFixed(1)} FPS (${s.backend}, resolución ${(s.pixelRatio * 100).toFixed(0)} %), ${s.drawCalls} draw calls de edificios`);
 
   // Caminar 3 s hacia el norte (cámara mira al norte por defecto)
   const s0 = await g.state();
@@ -100,6 +100,54 @@ try {
     check('colisión con matera/banca', dc > 4.0, `distancia al centro ${dc.toFixed(2)} m (radio 4.0 m)`);
   }
 
+  // ---------------- Parque de la Independencia: subir la grada de la plataforma y chocar con el pedestal
+  const pk = world.parks?.[0];
+  if (pk?.monuments?.length) {
+    const mon = pk.monuments[0];
+    const stx = mon.x + mon.front[0] * 0.6, stz = mon.z + mon.front[1] * 0.6;
+    const yawToStatue = Math.atan2(mon.front[0], mon.front[1]);   // forward = -front → hacia la estatua
+    await page.evaluate(([x, z, yaw]) => { window.__zipa.teleport(x, z); window.__zipa.setView(yaw, 0.3, 5); },
+      [stx + mon.front[0] * 9, stz + mon.front[1] * 9, yawToStatue]);
+    await wait(500);
+    const p0 = await g.state();
+    await hold('w', 5000);
+    s = await g.state();
+    const dStatue = Math.hypot(s.x - stx, s.z - stz);
+    check('subir a la plataforma del monumento', s.y - p0.y > 0.25, `subió ${(s.y - p0.y).toFixed(2)} m`);
+    check('colisión con el pedestal de Nariño', dStatue > 0.95, `a ${dStatue.toFixed(2)} m del centro del pedestal`);
+  }
+
+  // ---------------- Tráfico
+  {
+    s = await g.state();
+    check('tráfico circulando', s.vehicles >= 80 && s.trafficAvgSpeed > 2,
+      `${s.vehicles} vehículos, velocidad media ${(s.trafficAvgSpeed * 3.6).toFixed(0)} km/h, ${s.trafficStopped} detenidos, ${s.signals} semáforos`);
+    // pararse en la calzada delante de un vehículo en marcha: debe frenar y no atropellar
+    const list = await page.evaluate(() => window.__zipa.vehicleList());
+    // un vehículo en marcha cuyo punto 14 m adelante esté libre (sin otro vehículo a menos de 6 m)
+    const free = (x, z) => list.every((o) => Math.hypot(o.x - x, o.z - z) > 6);
+    const veh = list.filter((v) => v.v > 3 && v.type !== 'moto' && free(v.x + v.tx * 14, v.z + v.tz * 14))
+      .sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
+    if (veh) {
+      await page.evaluate(([x, z]) => window.__zipa.teleport(x, z), [veh.x + veh.tx * 14, veh.z + veh.tz * 14]);
+      let inside = false, minD = Infinity;
+      for (let i = 0; i < 40; i++) {
+        await wait(100);
+        const st = await g.state();
+        const vs = await page.evaluate(() => window.__zipa.vehicleList());
+        for (const v of vs) {
+          // ¿el jugador quedó dentro de la huella de algún vehículo?
+          const dx = st.x - v.x, dz = st.z - v.z;
+          const along = dx * v.tx + dz * v.tz, across = dx * -v.tz + dz * v.tx;
+          const dims = { carro: [4.3, 1.75], taxi: [3.6, 1.6], moto: [2, 0.75], buseta: [7.5, 2.3], camioneta: [5.2, 1.9] }[v.type];
+          if (Math.abs(along) < dims[0] / 2 && Math.abs(across) < dims[1] / 2) inside = true;
+          if (v.id === veh.id) minD = Math.min(minD, Math.hypot(dx, dz));
+        }
+      }
+      check('los vehículos frenan ante el peatón', !inside, `distancia mínima al vehículo ${minD.toFixed(2)} m, atropellado: ${inside}`);
+    }
+  }
+
   // ---------------- Moto
   await page.evaluate(() => window.__zipa.teleport(0, 0));
   await wait(300);
@@ -117,10 +165,12 @@ try {
   check('subirse a la moto (E)', s.riding === true, `riding=${s.riding}`);
   // acelerar
   const m0 = s.moto;
-  await hold('w', 3000);
+  await hold('w', 4500);
   s = await g.state();
   const dm = Math.hypot(s.moto[0] - m0[0], s.moto[2] - m0[2]);
-  check('acelerar', s.motoSpeed > 10 && dm > 15, `${(s.motoSpeed * 3.6).toFixed(0)} km/h, ${dm.toFixed(1)} m en 3 s`);
+  check('acelerar (125 cc: 0–50 km/h en ~6 s)', s.motoSpeed > 8.5 && s.motoSpeed < 16 && dm > 15,
+    `${(s.motoSpeed * 3.6).toFixed(0)} km/h, ${dm.toFixed(1)} m en 4,5 s`);
+  check('caja automática', s.motoGear >= 2 && s.motoRpm > 2500, `${s.motoGear}ª a ${Math.round(s.motoRpm)} rpm, superficie ${s.motoSurface}`);
   // girar a la derecha con inclinación
   const y0 = s.motoYaw;
   await page.keyboard.down('w');
@@ -132,14 +182,14 @@ try {
   s = await g.state();
   let dyaw = s.motoYaw - y0;
   dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
-  check('girar a la derecha e inclinarse', dyaw < -0.3 && maxLean > 0.1,
+  check('girar a la derecha e inclinarse', dyaw < -0.25 && maxLean > 0.3,
     `giro ${(dyaw * 180 / Math.PI).toFixed(0)}°, inclinación máx ${(maxLean * 180 / Math.PI).toFixed(0)}°`);
   // frenar
   await hold(' ', 2500);
   s = await g.state();
   check('frenar', Math.abs(s.motoSpeed) < 0.5, `${(s.motoSpeed * 3.6).toFixed(1)} km/h`);
   // chocar contra la catedral a toda velocidad: no la atraviesa
-  await page.evaluate(([x, z, yaw]) => window.__zipa.placeMoto(x, z, yaw), [best.x + ux * 25, best.z + uz * 25, yawToWall]);
+  await page.evaluate(([x, z, yaw]) => window.__zipa.placeMoto(x, z, yaw), [best.x + ux * 14, best.z + uz * 14, yawToWall]);
   await page.evaluate(([yaw]) => window.__zipa.setView(yaw, 0.3, 7), [yawToWall]);
   await wait(300);
   await hold('w', 4500);
@@ -157,6 +207,30 @@ try {
   await page.keyboard.up('a');
   await page.keyboard.up('w');
   await hold(' ', 2500);
+  // la moto choca con los vehículos (colliders cinemáticos)
+  {
+    const vs = await page.evaluate(() => window.__zipa.vehicleList());
+    const st0 = await g.state();
+    const target = vs.filter((v) => v.type === 'buseta' || v.type === 'camioneta' || v.type === 'carro')
+      .sort((a, b) => Math.hypot(a.x - st0.moto[0], a.z - st0.moto[2]) - Math.hypot(b.x - st0.moto[0], b.z - st0.moto[2]))[0];
+    if (target) {
+      // de frente contra el costado del vehículo, desde 10 m
+      const px = -target.tz, pz = target.tx;
+      await page.evaluate(([x, z, yaw]) => window.__zipa.placeMoto(x, z, yaw), [target.x + px * 10, target.z + pz * 10, Math.atan2(px, pz)]);
+      await page.evaluate(() => { const t = window.__zipa.debug().traffic; for (const v of t.vehicles) v.v0f = v.v0f; });
+      await hold('w', 2200);
+      const st = await g.state();
+      const vs2 = await page.evaluate(() => window.__zipa.vehicleList());
+      let inside = false;
+      for (const v of vs2) {
+        const dx = st.moto[0] - v.x, dz = st.moto[2] - v.z;
+        const dims = { carro: [4.3, 1.75], taxi: [3.6, 1.6], moto: [2, 0.75], buseta: [7.5, 2.3], camioneta: [5.2, 1.9] }[v.type];
+        if (Math.abs(dx * v.tx + dz * v.tz) < dims[0] / 2 - 0.2 && Math.abs(dx * -v.tz + dz * v.tx) < dims[1] / 2 - 0.2) inside = true;
+      }
+      check('la moto no atraviesa los vehículos', !inside, `moto dentro de un vehículo: ${inside}`);
+      await hold(' ', 2000);
+    }
+  }
   // bajarse
   await page.keyboard.press('e');
   await wait(500);

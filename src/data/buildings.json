@@ -94,7 +94,22 @@
       "casa_tradicional": 0.4
     },
     "roofSlab": 0.25,
-    "overtureMaxOverlap": 0.2
+    "overtureMaxOverlap": 0.2,
+    "overtureExcludeOpenSpaces": {
+      "_doc": "Edificios Overture que NO vienen de OSM (detecciones ML de Google/Microsoft) se descartan si su centroide cae dentro de un espacio abierto mapeado en OSM (además de la plaza principal). Un edificio real dentro de un parque estaría en OSM y se conserva.",
+      "leisure": [
+        "park",
+        "garden",
+        "playground",
+        "pitch"
+      ],
+      "place": [
+        "square"
+      ],
+      "highway": [
+        "pedestrian"
+      ]
+    }
   },
   "style": {
     "colonial": {

@@ -36,6 +36,18 @@ export class Minimap {
     g.beginPath();
     meta.plaza.ring.forEach(([x, z], i) => (i ? g.lineTo(P(x), P(z)) : g.moveTo(P(x), P(z))));
     g.fill();
+    // Parques modelados: pavimento, monumento y fuente
+    const poly = (ring: [number, number][], color: string) => {
+      g.fillStyle = color;
+      g.beginPath();
+      ring.forEach(([x, z], i) => (i ? g.lineTo(P(x), P(z)) : g.moveTo(P(x), P(z))));
+      g.fill();
+    };
+    for (const pk of meta.parks ?? []) {
+      poly(pk.ring, '#9e9890');
+      for (const m of pk.monuments) poly(m.ring, '#6f6b65');
+      for (const f of pk.fountains) { g.fillStyle = '#4f8fb0'; g.beginPath(); g.arc(P(f.x), P(f.z), Math.max(3, f.radius * this.pxPerM), 0, Math.PI * 2); g.fill(); }
+    }
     const classes = roadsCfg.classes as Record<string, ClassCfg>;
     const order = ['footway', 'path', 'cycleway', 'steps', 'track', 'service', 'pedestrian', 'living_street',
       'residential', 'unclassified', 'tertiary', 'secondary', 'primary'];
@@ -68,7 +80,8 @@ export class Minimap {
   }
 
   draw(x: number, z: number, headingRad: number, cameraYaw: number,
-    markers: { x: number; z: number; color: string; label?: string }[] = []) {
+    markers: { x: number; z: number; color: string; label?: string }[] = [],
+    dots: { x: number; z: number; color: string }[] = [], lights: { x: number; z: number; color: string }[] = []) {
     const { ctx, canvas } = this;
     const W = canvas.width, H = canvas.height;
     const scale = W / 2 / this.radius; // px de pantalla por metro
@@ -82,6 +95,20 @@ export class Minimap {
     ctx.fillStyle = '#2b2a26';
     ctx.fillRect(0, 0, W, H);
     ctx.drawImage(this.base, sx - srcHalf, sz - srcHalf, srcHalf * 2, srcHalf * 2, 0, 0, W, H);
+    // Vehículos y semáforos
+    for (const d of dots) {
+      const dx = W / 2 + (d.x - x) * scale, dy = H / 2 + (d.z - z) * scale;
+      if (dx < 0 || dy < 0 || dx > W || dy > H) continue;
+      ctx.fillStyle = d.color;
+      ctx.fillRect(dx - 1.6, dy - 1.6, 3.2, 3.2);
+    }
+    for (const l of lights) {
+      const lx = W / 2 + (l.x - x) * scale, ly = H / 2 + (l.z - z) * scale;
+      ctx.fillStyle = l.color;
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(lx, ly, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
     // Marcadores (p. ej. la moto estacionada)
     for (const mk of markers) {
       const mx = W / 2 + (mk.x - x) * scale, my = H / 2 + (mk.z - z) * scale;

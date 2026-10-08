@@ -1,0 +1,80 @@
+{
+  "_doc": "Vías 3D, semáforos y tráfico. Grafo vial: OSM (vías vehiculares, oneway, lanes, maxspeed). Valores de simulación: típicos (ESTIMADOS).",
+  "graph": {
+    "laneWidth": 3.0,
+    "lanesOnewayMinWidth": 6.0,
+    "speedKmh": {
+      "primary": 50,
+      "secondary": 40,
+      "tertiary": 30,
+      "unclassified": 30,
+      "residential": 25,
+      "living_street": 15
+    },
+    "_speedDoc": "Velocidad deseada si OSM no trae maxspeed: urbana colombiana ≤ 50 km/h; centro histórico más lento (estimado)."
+  },
+  "signals": {
+    "_doc": "Semáforos OSM (highway=traffic_signals) asignados al cruce más cercano (≤ 30 m). ESTIMADOS: cruces de ≥ 4 accesos donde una vía primary/secondary/tertiary se cruza con otra calle (no sobre adoquín), por importancia y a ≥ minSpacing m de cualquier otro semáforo.",
+    "osmSnapDistance": 30,
+    "inferClasses": [
+      "primary",
+      "secondary",
+      "tertiary"
+    ],
+    "inferEnabled": true,
+    "minSpacing": 120,
+    "green": 20,
+    "yellow": 3,
+    "allRed": 2,
+    "stopSetback": 1.5
+  },
+  "markings": {
+    "_doc": "Señalización horizontal (convención colombiana): línea central amarilla en doble sentido, línea blanca segmentada entre carriles del mismo sentido, cebras y líneas de pare en cruces semaforizados y cruces OSM. No se pinta sobre adoquín.",
+    "lineWidth": 0.12,
+    "dash": 3.0,
+    "gap": 4.0,
+    "solidNearJunction": 12.0,
+    "zebraStripe": 0.5,
+    "zebraGap": 0.5,
+    "zebraDepth": 3.0,
+    "stopLineWidth": 0.4,
+    "noMarkSurfaces": [
+      "sett",
+      "paving_stones",
+      "unpaved",
+      "concrete"
+    ]
+  },
+  "sidewalks": {
+    "height": 0.15,
+    "segment": 2.0,
+    "minWidth": 0.6,
+    "color": "#b9b4aa",
+    "curb": "#8f8b84"
+  },
+  "traffic": {
+    "vehicles": 110,
+    "mix": {
+      "carro": 0.32,
+      "taxi": 0.2,
+      "moto": 0.28,
+      "buseta": 0.1,
+      "camioneta": 0.1
+    },
+    "_mixDoc": "Mezcla típica de una ciudad intermedia colombiana (estimada): muchas motos y taxis amarillos.",
+    "idm": {
+      "a": 1.6,
+      "b": 2.6,
+      "s0": 2.2,
+      "T": 1.3,
+      "delta": 4
+    },
+    "lookahead": 32,
+    "respawnMinDistance": 60,
+    "junctionWaitTimeout": 5,
+    "honkAfter": 1.6,
+    "bubbleRadius": 210,
+    "despawnDistance": 250,
+    "_bubbleDoc": "Burbuja de tráfico: ~110 vehículos circulan a ≤ 210 m del jugador (≈ 1 cada 40 m de carril en el centro); los que pasan de 250 m reaparecen a 60–210 m."
+  }
+}
