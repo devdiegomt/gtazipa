@@ -1,0 +1,341 @@
+{
+  "version": 1,
+  "generatedUtc": "2026-10-08T00:08:28+00:00",
+  "origin": {
+    "lat": 5.023438235130531,
+    "lon": -74.00400191227052,
+    "epsg": 32618,
+    "utmE": 610412.295,
+    "utmN": 555339.163,
+    "scaleFactor": 0.9997508949898251,
+    "convergenceDeg": 0.08722172692879496,
+    "elevation": 2616.53,
+    "definition": "centroide de la Plaza de los Comuneros (cara de la red vial OSM delimitada por ways 116943045, 1036042257, 1291180761, 771704318, 1386064867)"
+  },
+  "area": {
+    "half": 400.0
+  },
+  "terrain": {
+    "file": "terrain.bin",
+    "n": 461,
+    "spacing": 2.0,
+    "half": 460.0,
+    "minY": -23.298824310302734,
+    "maxY": 40.90266036987305
+  },
+  "ground": {
+    "file": "ground.png",
+    "half": 460.0
+  },
+  "plaza": {
+    "area": 6839.1,
+    "ring": [
+      [
+        58.02,
+        -13.86
+      ],
+      [
+        12.4,
+        56.85
+      ],
+      [
+        -57.67,
+        11.81
+      ],
+      [
+        -54.09,
+        6.22
+      ],
+      [
+        -13.67,
+        -55.55
+      ],
+      [
+        58.02,
+        -13.86
+      ]
+    ],
+    "paved": [
+      [
+        -54.51,
+        13.84
+      ],
+      [
+        12.4,
+        56.85
+      ],
+      [
+        9.67,
+        55.08
+      ],
+      [
+        55.21,
+        -15.5
+      ],
+      [
+        -10.43,
+        -53.67
+      ],
+      [
+        -10.47,
+        -53.6
+      ],
+      [
+        -10.53,
+        -53.5
+      ],
+      [
+        -50.95,
+        8.26
+      ],
+      [
+        -54.51,
+        13.83
+      ],
+      [
+        -54.51,
+        13.84
+      ]
+    ],
+    "plane": {
+      "a": 0.0,
+      "bx": -0.014014206334647977,
+      "bz": -0.057749542157093936,
+      "slopeDeg": 3.4008393181401644,
+      "residualStd": 0.4202269420792385
+    },
+    "planters": [
+      {
+        "osm": "node/1317233804",
+        "x": 23.59,
+        "z": 7.81,
+        "y": -0.78
+      },
+      {
+        "osm": "node/1317233913",
+        "x": -14.26,
+        "z": -15.58,
+        "y": 1.1
+      },
+      {
+        "osm": "node/1317233987",
+        "x": -0.49,
+        "z": 17.3,
+        "y": -0.99
+      },
+      {
+        "osm": "node/1317234084",
+        "x": -23.7,
+        "z": -2.44,
+        "y": 0.47
+      }
+    ]
+  },
+  "landmarks": [
+    {
+      "osm": "way/116943050",
+      "name": "Catedral Diocesana de Zipaquirá",
+      "model": {
+        "file": "catedral.glb",
+        "origin": [
+          28.781,
+          -34.625
+        ],
+        "axisU": [
+          0.868564,
+          0.495576
+        ],
+        "axisV": [
+          0.495576,
+          -0.868564
+        ],
+        "floorY": 2.276,
+        "facadeWidth": 36.164,
+        "triangles": 8293
+      },
+      "x": 45.42,
+      "z": -63.39,
+      "height": 37.5,
+      "estimated": true,
+      "groundY": 3.96,
+      "area": 2388.7,
+      "ring": [
+        [
+          44.49,
+          -25.66
+        ],
+        [
+          71.56,
+          -71.14
+        ],
+        [
+          66.56,
+          -74.48
+        ],
+        [
+          75.24,
+          -87.99
+        ],
+        [
+          69.14,
+          -91.95
+        ],
+        [
+          66.97,
+          -90.58
+        ],
+        [
+          65.16,
+          -90.87
+        ],
+        [
+          65.92,
+          -93.66
+        ],
+        [
+          64.79,
+          -97.12
+        ],
+        [
+          61.86,
+          -99.66
+        ],
+        [
+          58.62,
+          -99.48
+        ],
+        [
+          55.38,
+          -98.72
+        ],
+        [
+          53.16,
+          -96.14
+        ],
+        [
+          50.43,
+          -90.66
+        ],
+        [
+          43.91,
+          -95.73
+        ],
+        [
+          39.87,
+          -87.96
+        ],
+        [
+          37.56,
+          -88.4
+        ],
+        [
+          34.89,
+          -87.49
+        ],
+        [
+          33.33,
+          -85.46
+        ],
+        [
+          32.44,
+          -83.21
+        ],
+        [
+          32.72,
+          -79.96
+        ],
+        [
+          33.76,
+          -77.6
+        ],
+        [
+          13.08,
+          -43.59
+        ],
+        [
+          44.49,
+          -25.66
+        ]
+      ]
+    }
+  ],
+  "files": {
+    "buildings": "buildings.glb",
+    "buildingsMeta": "buildings.json",
+    "roads": "roads.json",
+    "corners": "corners.json",
+    "props": "props.json"
+  },
+  "stats": {
+    "cubierta_dos_aguas": 1125,
+    "balcones": 17,
+    "arquetipo:colonial": 299,
+    "fuente:osm": 945,
+    "altura_estimada": 1215,
+    "arquetipo:casa_tradicional": 872,
+    "arquetipo:hito": 1,
+    "arquetipo:comercial": 44,
+    "altura_dato": 2,
+    "arquetipo:moderno": 1,
+    "fuente:overture:Microsoft ML Buildings": 37,
+    "fuente:overture:Google Open Buildings": 235,
+    "manzanas": 72,
+    "mallasEdificios": 73,
+    "triangulosEdificios": 28907,
+    "tramosVia": 210,
+    "esquinas": 86,
+    "props": 4,
+    "overture": {
+      "Microsoft ML Buildings": 112,
+      "Google Open Buildings": 580
+    }
+  },
+  "sources": {
+    "osm": {
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "bbox_lat_lon": [
+        5.018,
+        -74.0096,
+        5.03,
+        -73.9976
+      ],
+      "osm_base_timestamp": "2026-10-07T14:09:07Z",
+      "downloaded_utc": "2026-10-07T14:10:27+00:00",
+      "elements": 16388
+    },
+    "dem": {
+      "downloaded_utc": "2026-10-07T14:04:48+00:00",
+      "source": "Copernicus GLO-30 DEM (AWS Open Data)",
+      "tiles": [
+        "Copernicus_DSM_COG_10_N05_00_W075_00_DEM.tif",
+        "Copernicus_DSM_COG_10_N05_00_W074_00_DEM.tif"
+      ],
+      "crs": "EPSG:4326",
+      "shape": [
+        72,
+        72
+      ],
+      "min_m": 2573.021484375,
+      "max_m": 2919.95556640625
+    },
+    "overture": {
+      "last_release": "2026-09-23.1",
+      "last_run": "2026-10-07T14:04:38.293660+00:00",
+      "theme": "buildings",
+      "type": "building",
+      "bbox": {
+        "xmin": -74.0096,
+        "ymin": 5.018,
+        "xmax": -73.9976,
+        "ymax": 5.03
+      },
+      "backend": "geojson",
+      "output": "D:\\projects\\zipa\\data\\cache\\overture_buildings.geojson"
+    }
+  },
+  "attribution": [
+    "© OpenStreetMap contributors (ODbL)",
+    "Overture Maps Foundation — buildings (Google Open Buildings, Microsoft ML Buildings)",
+    "Copernicus DEM GLO-30 © DLR e.V. 2010-2014 y © Airbus Defence and Space GmbH 2014-2018, provisto bajo COPERNICUS por la Unión Europea y la ESA"
+  ]
+}

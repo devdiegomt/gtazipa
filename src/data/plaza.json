@@ -1,0 +1,57 @@
+{
+  "_doc": "Plaza de los Comuneros. Forma: OSM. Materas/bancas: una por cada árbol OSM (natural=tree) dentro de la plaza; diseño y dimensiones ESTIMADOS de las fotos del usuario (docs/referencias/), tras la remodelación: banca circular de listones alrededor de una matera con flores y una palma al centro.",
+  "terrain": {
+    "_doc": "El DSM de 30 m mete el relieve de los edificios vecinos. Dentro de la plaza y la catedral el terreno se sustituye por un plano ajustado (mínimos cuadrados) al DEM en el borde de la plaza; transición suave hacia afuera.",
+    "flatten": true,
+    "buffer": 3.0,
+    "blend": 14.0
+  },
+  "paving": {
+    "brick": "#a2603f",
+    "brickAlt": "#8e5844",
+    "band": "#bdb5a8",
+    "bandSpacing": 4.5,
+    "bandWidth": 0.22,
+    "brickLength": 0.22,
+    "brickWidth": 0.11
+  },
+  "planter": {
+    "outerRadius": 4.0,
+    "benchDepth": 0.55,
+    "seatHeight": 0.46,
+    "wallHeight": 0.58,
+    "innerRing": {
+      "r0": 0.95,
+      "r1": 1.35,
+      "height": 0.66
+    },
+    "flowerClumps": 70,
+    "colors": {
+      "bench": "#b8603a",
+      "benchGap": "#5e2f1d",
+      "wall": "#9a5a3e",
+      "soil": "#3d2d22",
+      "ring": "#e6e1d6"
+    },
+    "flowers": [
+      "#7b3fa6",
+      "#a3449a",
+      "#c63f7c",
+      "#e07aa6",
+      "#f2f0ea",
+      "#8e5cc0"
+    ],
+    "shrub": "#3f6b33"
+  },
+  "palm": {
+    "_doc": "Altura del tronco estimada de las fotos (9–15 m); varía de forma determinista por id OSM.",
+    "trunkMin": 9.0,
+    "trunkMax": 15.0,
+    "trunkRadius": 0.34,
+    "fronds": 26,
+    "frondLength": 4.2,
+    "trunk": "#8d8478",
+    "leaf": "#3f6a2c",
+    "leafDry": "#8a7a45"
+  }
+}

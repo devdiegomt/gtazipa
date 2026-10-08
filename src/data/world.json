@@ -1,0 +1,24 @@
+{
+  "_doc": "Parámetros del mundo generados por el pipeline y de render.",
+  "area": {
+    "size": 800,
+    "terrainMargin": 60,
+    "terrainSpacing": 2.0
+  },
+  "dem": {
+    "smoothSigmaPx": 0.8
+  },
+  "render": {
+    "sky": "#a9c4dc",
+    "fogNear": 180,
+    "fogFar": 650,
+    "sunDirection": [
+      -0.55,
+      0.72,
+      0.42
+    ],
+    "shadowMapSize": 2048,
+    "shadowExtent": 60,
+    "_sunDoc": "Sol de la tarde desde el suroeste (como en la foto de referencia de la catedral)."
+  }
+}

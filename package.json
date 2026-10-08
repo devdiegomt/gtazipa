@@ -1,0 +1,30 @@
+{
+  "name": "zipa",
+  "private": true,
+  "version": "0.0.1",
+  "description": "ZIPA — Una ciudad. Tu historia. MVP 0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "test": "vitest run",
+    "capture": "node scripts/capture.mjs",
+    "pipeline": "cd pipeline && .venv\\Scripts\\python run_all.py",
+    "playtest": "node scripts/playtest.mjs",
+    "capture-moto": "node scripts/capture-moto.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/three": "^0.186.0",
+    "geographiclib-geodesic": "^2.2.0",
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  }
+}

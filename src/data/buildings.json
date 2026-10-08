@@ -1,0 +1,157 @@
+{
+  "_doc": "Reglas de altura y arquetipo. El pipeline (pipeline/build_world.py) y el juego leen este archivo. Cambia valores aquí, no en la lógica.",
+  "floorHeight": {
+    "_doc": "Altura por piso (m) por arquetipo. altura = pisos * floorHeight + extra.",
+    "colonial": 3.6,
+    "casa_tradicional": 2.8,
+    "comercial": 3.1,
+    "moderno": 2.9,
+    "hito": 4.0
+  },
+  "roofExtra": {
+    "colonial": 0.6,
+    "casa_tradicional": 0.4,
+    "comercial": 0.6,
+    "moderno": 0.9,
+    "hito": 0.0
+  },
+  "heightEstimate": {
+    "_doc": "Sólo si no hay height ni building:levels (OSM) ni num_floors/height (Overture). El edificio queda marcado altura_estimada=true. Pisos por arquetipo; huellas pequeñas (< smallArea m²) se estiman de 1 piso.",
+    "levels": {
+      "colonial": 2,
+      "casa_tradicional": 2,
+      "comercial": 3,
+      "moderno": 5
+    },
+    "smallArea": 30,
+    "smallLevels": 1
+  },
+  "landmarks": {
+    "_doc": "Hitos con huella real de OSM. La altura es una estimación documentada (OSM no trae height): volumen simple, sin arquitectura inventada.",
+    "116943050": {
+      "name": "Catedral Diocesana de Zipaquirá",
+      "archetype": "hito",
+      "height": 37.5,
+      "estimated": true,
+      "model": "catedral",
+      "_doc": "Modelo detallado generado por pipeline/catedral.py (parámetros en src/data/catedral.json). height = cruz de las torres (estimada)."
+    }
+  },
+  "archetypeRules": {
+    "_doc": "Se evalúan en orden; gana la primera que cumple. Ver docs/INFORME.md.",
+    "modernMinLevels": 4,
+    "modernTags": [
+      "apartments",
+      "office",
+      "hospital",
+      "university",
+      "hotel",
+      "college",
+      "dormitory"
+    ],
+    "commercialTags": [
+      "commercial",
+      "retail",
+      "supermarket",
+      "industrial",
+      "warehouse",
+      "kiosk",
+      "train_station"
+    ],
+    "commercialTagKeys": [
+      "shop",
+      "office"
+    ],
+    "commercialRoadClasses": [
+      "primary",
+      "secondary"
+    ],
+    "commercialRoadDistance": 8.0,
+    "historicCoreRadius": 230.0,
+    "colonialMaxLevels": 2,
+    "colonialTags": [
+      "yes",
+      "house",
+      "residential",
+      "terrace",
+      "church",
+      "chapel",
+      "public",
+      "civic",
+      "government",
+      "school",
+      "townhall",
+      "detached",
+      "semidetached_house"
+    ]
+  },
+  "geometry": {
+    "minArea": 4.0,
+    "simplify": 0.05,
+    "foundationDepth": 0.6,
+    "eaveOverhang": {
+      "colonial": 0.55,
+      "casa_tradicional": 0.4
+    },
+    "roofSlab": 0.25,
+    "overtureMaxOverlap": 0.2
+  },
+  "style": {
+    "colonial": {
+      "wall": "#efeae0",
+      "base": "#3e5e3a",
+      "trim": "#5a3a22",
+      "roof": "#a2523a"
+    },
+    "casa_tradicional": {
+      "wall": "#e2d2b4",
+      "base": "#7a5a3a",
+      "trim": "#6b4a2e",
+      "roof": "#93503a"
+    },
+    "comercial": {
+      "wall": "#d9d4cc",
+      "base": "#5b5b5b",
+      "trim": "#3a3f45",
+      "roof": "#8e8a84"
+    },
+    "moderno": {
+      "wall": "#c4c2bd",
+      "base": "#6c6c6c",
+      "trim": "#2f3a44",
+      "roof": "#7c7a76"
+    },
+    "hito": {
+      "wall": "#d8cfbf",
+      "base": "#a59a88",
+      "trim": "#8f8576",
+      "roof": "#8a8478"
+    }
+  },
+  "pitchedRoof": {
+    "_doc": "Cubierta de teja a dos aguas (procedural: la forma de la cubierta no está en los datos). Cumbrera según el eje largo del rectángulo mínimo de la huella; la pendiente se limita a maxRun m desde el alero (crujías anchas quedan con franja superior plana).",
+    "archetypes": [
+      "colonial",
+      "casa_tradicional"
+    ],
+    "pitchDeg": 24,
+    "maxRun": 5.0,
+    "minArea": 12,
+    "overhang": {
+      "colonial": 0.9,
+      "casa_tradicional": 0.6
+    }
+  },
+  "balconies": {
+    "_doc": "Balcón corrido de madera en el segundo piso de fachadas coloniales que dan a la plaza (fotos del usuario). Regla: arista >= minEdge m, a <= maxDistToPlaza m del borde de la plaza y mirando hacia ella. Procedural.",
+    "archetypes": [
+      "colonial"
+    ],
+    "maxDistToPlaza": 18.0,
+    "minEdge": 5.0,
+    "depth": 0.85,
+    "railHeight": 1.0,
+    "inset": 0.4,
+    "color": "#6b2f22"
+  }
+}

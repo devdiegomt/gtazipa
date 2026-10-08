@@ -1,0 +1,182 @@
+{
+  "_doc": "Catedral Diocesana de Zipaquirá (OSM way 116943050). PLANTA: huella OSM. COMPOSICIÓN: Arbeláez Camacho, 'Una obra poco conocida del arquitecto Fray Domingo de Petrés: la catedral de Zipaquirá', Revista Apuntes, U. Javeriana (tramo central de dos cuerpos con frontón triangular sobre cuatro pilastras con retropilastras, cartones avolutados rematados por pirámides herrerianas; dos torres de tres cuerpos; tres naves de igual altura, sin cúpula exterior, cubierta a dos faldones, crucero con brazos absidales, ábside y dos sacristías). ALTURAS Y POSICIONES DE VANOS: ESTIMADAS de la foto aportada por el usuario (docs/referencias/foto_usuario_catedral.png), escaladas con el ancho OSM de la fachada (36.2 m); incertidumbre ±10-15 %. Marco local: u a lo largo de la fachada (+u = torre oriental, la del reloj), v hacia el interior del templo, y sobre el piso del atrio.",
+  "osmWay": 116943050,
+  "steps": {
+    "count": 4,
+    "rise": 0.17,
+    "tread": 0.42
+  },
+  "towers": {
+    "width": 8.6,
+    "bodies": [
+      11.8,
+      21.8,
+      29.8
+    ],
+    "cornice": {
+      "height": 0.8,
+      "projection": 0.55
+    },
+    "cornerPilaster": {
+      "width": 0.9,
+      "projection": 0.28
+    },
+    "oculus": {
+      "y": 9.4,
+      "r": 0.65
+    },
+    "slit": {
+      "w": 0.55,
+      "h": 1.3,
+      "y": 3.8
+    },
+    "window2": {
+      "w": 1.05,
+      "h": 1.8,
+      "y": 15.8
+    },
+    "belfry": {
+      "w": 2.1,
+      "h": 4.6,
+      "sill": 22.8
+    },
+    "belfryClockFace": {
+      "sill": 24.7,
+      "h": 4.1
+    },
+    "clock": {
+      "tower": "east",
+      "y": 23.6,
+      "r": 0.95
+    },
+    "cupola": {
+      "base": 3.15,
+      "height": 6.3,
+      "segments": 8,
+      "drum": 1.6,
+      "_doc": "Tambor octogonal + bulbo vidriado verde con nervios blancos (foto del usuario). El tambor eleva la cúpula sobre la cornisa: desde la plaza se ve entera, como en la foto."
+    },
+    "cross": 1.8
+  },
+  "center": {
+    "plinth": 0.7,
+    "pilasterWidth": 0.62,
+    "pilasterProjection": 0.3,
+    "mainDoor": {
+      "w": 2.5,
+      "h": 5.1
+    },
+    "sideDoor": {
+      "w": 2.1,
+      "h": 4.3,
+      "u": 6.4
+    },
+    "windowAboveMain": {
+      "w": 1.1,
+      "h": 2.0,
+      "y": 7.4
+    },
+    "windowAboveSide": {
+      "w": 1.05,
+      "h": 2.2,
+      "y": 7.0
+    },
+    "sideBodyTop": 18.2,
+    "centralBay": {
+      "halfWidth": 3.55,
+      "top": 20.5
+    },
+    "centralWindow": {
+      "w": 1.45,
+      "h": 3.1,
+      "y": 13.3
+    },
+    "sideWindow": {
+      "w": 1.3,
+      "h": 2.7,
+      "y": 13.5,
+      "u": 6.4
+    },
+    "archRelief": {
+      "y": 17.6,
+      "r": 2.25,
+      "band": 0.35
+    },
+    "pediment": {
+      "halfWidth": 3.95,
+      "apex": 23.1
+    },
+    "volute": {
+      "uInner": 3.55,
+      "uOuter": 6.6,
+      "height": 2.2
+    },
+    "pyramids": {
+      "u": 6.95,
+      "height": 2.3,
+      "base": 0.75
+    },
+    "pilastersBody1U": [
+      -8.95,
+      -4.0,
+      -2.5,
+      2.5,
+      4.0,
+      8.95
+    ],
+    "pilastersBody2U": [
+      -8.95,
+      -3.2,
+      -2.5,
+      2.5,
+      3.2,
+      8.95
+    ]
+  },
+  "body": {
+    "_doc": "Cuerpo de tres naves regularizado a rectángulo (desviación < 1.1 m respecto a la huella OSM).",
+    "depth": 52.9,
+    "eave": 15.3,
+    "roofPitchDeg": 22,
+    "overhang": 0.7,
+    "bayLength": 5.6,
+    "buttress": {
+      "width": 1.1,
+      "projection": 0.7
+    },
+    "sideWindow": {
+      "w": 1.8,
+      "h": 3.6,
+      "y": 8.8
+    }
+  },
+  "chancel": {
+    "_doc": "Capilla mayor + ábside y sacristías: la parte de la huella OSM detrás del cuerpo de naves.",
+    "uMin": -9.5,
+    "uMax": 6.0,
+    "eave": 12.0,
+    "roofPitchDeg": 24
+  },
+  "sacristy": {
+    "eave": 8.0,
+    "roofPitchDeg": 16
+  },
+  "transeptApse": {
+    "eave": 11.0
+  },
+  "colors": {
+    "piedra": "#d9ba92",
+    "sillar": "#cc8a5c",
+    "moldura": "#dcc19c",
+    "zocalo": "#a8a090",
+    "madera": "#5a2c1e",
+    "vano": "#1b1917",
+    "teja": "#a4553a",
+    "cupula": "#8db79a",
+    "blanco": "#ece6da",
+    "hierro": "#26262a",
+    "bronce": "#8a6b3c",
+    "reloj": "#f2efe6",
+    "muro": "#cfa985"
+  }
+}

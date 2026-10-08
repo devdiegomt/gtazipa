@@ -1,0 +1,8 @@
+node_modules/
+dist/
+pipeline/.venv/
+pipeline/__pycache__/
+data/cache/
+data/raw/*
+!data/raw/README.md
+test-results/

@@ -1,0 +1,24 @@
+{
+  "_doc": "Parámetros del personaje y de la cámara (unidades SI: m, s).",
+  "capsule": { "halfHeight": 0.55, "radius": 0.3 },
+  "walkSpeed": 2.2,
+  "runSpeed": 6.0,
+  "acceleration": 14.0,
+  "jumpSpeed": 4.6,
+  "gravity": 9.81,
+  "turnSpeed": 12.0,
+  "maxSlopeDeg": 50,
+  "autostep": { "maxHeight": 0.35, "minWidth": 0.2 },
+  "snapToGround": 0.4,
+  "camera": {
+    "distance": 5.5,
+    "minDistance": 1.6,
+    "maxDistance": 14.0,
+    "pivotHeight": 1.55,
+    "minPitchDeg": -25,
+    "maxPitchDeg": 75,
+    "sensitivity": 0.0025,
+    "collisionMargin": 0.25,
+    "fov": 60
+  }
+}

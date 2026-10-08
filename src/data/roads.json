@@ -1,0 +1,32 @@
+{
+  "_doc": "Ancho de calzada (m) y de cada acera (m) por clase highway=*. Si el way OSM trae width=*, se usa ese ancho de calzada (dato real). Las aceras OSM no están mapeadas en el área, así que su ancho es estimado por clase. 'surface' por defecto si el way no trae surface=*. Colores en hex para la textura del suelo y el minimapa.",
+  "classes": {
+    "primary":       { "width": 10.0, "sidewalk": 2.0, "surface": "asphalt", "minimap": { "width": 4.0, "color": "#f2c24f" } },
+    "secondary":     { "width": 9.0,  "sidewalk": 2.0, "surface": "asphalt", "minimap": { "width": 3.5, "color": "#f2d27a" } },
+    "tertiary":      { "width": 7.5,  "sidewalk": 1.6, "surface": "asphalt", "minimap": { "width": 3.0, "color": "#ffffff" } },
+    "unclassified":  { "width": 6.5,  "sidewalk": 1.4, "surface": "asphalt", "minimap": { "width": 2.5, "color": "#ffffff" } },
+    "residential":   { "width": 6.5,  "sidewalk": 1.4, "surface": "asphalt", "minimap": { "width": 2.5, "color": "#ffffff" } },
+    "living_street": { "width": 5.5,  "sidewalk": 1.0, "surface": "paving_stones", "minimap": { "width": 2.0, "color": "#e8e8e8" } },
+    "service":       { "width": 4.0,  "sidewalk": 0.0, "surface": "asphalt", "minimap": { "width": 1.5, "color": "#d9d9d9" } },
+    "pedestrian":    { "width": 6.0,  "sidewalk": 0.0, "surface": "paving_stones", "minimap": { "width": 2.0, "color": "#d8c7a8" } },
+    "footway":       { "width": 2.5,  "sidewalk": 0.0, "surface": "paving_stones", "minimap": { "width": 1.0, "color": "#d8c7a8" } },
+    "path":          { "width": 2.0,  "sidewalk": 0.0, "surface": "paving_stones", "minimap": { "width": 1.0, "color": "#d8c7a8" } },
+    "cycleway":      { "width": 2.0,  "sidewalk": 0.0, "surface": "asphalt", "minimap": { "width": 1.0, "color": "#9fd3a0" } },
+    "steps":         { "width": 2.0,  "sidewalk": 0.0, "surface": "concrete", "minimap": { "width": 1.0, "color": "#d8c7a8" } },
+    "track":         { "width": 3.0,  "sidewalk": 0.0, "surface": "unpaved", "minimap": { "width": 1.0, "color": "#c9b38a" } }
+  },
+  "surfaces": {
+    "asphalt":       "#4a4b4f",
+    "paved":         "#56575b",
+    "concrete":      "#9a9894",
+    "paving_stones": "#a08a74",
+    "sett":          "#8c7a68",
+    "unpaved":       "#8b7a5c",
+    "sidewalk":      "#b7b2a8",
+    "plaza":         "#a39280",
+    "grass":         "#5f7a3c",
+    "lot":           "#7d7462",
+    "outside":       "#6f6a58"
+  },
+  "groundTexture": { "size": 4096, "supersample": 2 }
+}

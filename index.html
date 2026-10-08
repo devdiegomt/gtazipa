@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZIPA — Una ciudad. Tu historia.</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%23a2523a%22/%3E%3Cpath d=%22M3 13V7l5-4 5 4v6z%22 fill=%22%23efeae0%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <div id="title">ZIPA <span>Zipaquirá · MVP 0</span></div>
+      <div id="stats"></div>
+    </div>
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="speedo"></div>
+    <div id="prompt"></div>
+    <div id="help">
+      Clic para controlar la cámara · <b>WASD</b> mover · <b>Shift</b> correr · <b>Espacio</b> saltar ·
+      <b>Rueda</b> distancia · <b>E</b> moto · <b>Esc</b> soltar ratón
+    </div>
+    <div id="attribution"></div>
+    <div id="loading">Cargando Zipaquirá…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
