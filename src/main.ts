@@ -350,10 +350,14 @@ async function main() {
     scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
     try { await renderer.compileAsync(scene, camera); } catch (e) { console.warn('compileAsync', e); }
     for (const o of hidden) o.visible = false;
-    // y las variantes translúcidas del personaje (cámara pegada a él): sin tirón la primera vez que se desvanece
+    // y las variantes translúcidas del personaje, casco incluido (cámara pegada a él): sin tirón la primera vez que se
+    // desvanece
     if (avatar.root.visible) {
       avatar.setOpacity(0.5);
+      hidden.length = 0;
+      avatar.root.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
       try { await renderer.compileAsync(avatar.root, camera, scene); } catch (e) { console.warn('compileAsync', e); }
+      for (const o of hidden) o.visible = false;
       avatar.setOpacity(1);
     }
   }
@@ -370,7 +374,8 @@ async function main() {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     // En pausa no corre ningún paso fijo (jugador, moto, tráfico y física congelados) y las animaciones usan gdt = 0;
-    // el render sigue (la interpolación queda fija porque acc no cambia).
+    // el render sigue (la interpolación queda fija porque acc no cambia). Las animaciones de ambiente hechas en shader
+    // con el reloj `time` de TSL (banderas y fuentes de los parques) siguen moviéndose.
     const paused = pause.paused;
     const gdt = paused ? 0 : dt;
     const m = input.consumeMouse();

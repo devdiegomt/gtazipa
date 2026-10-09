@@ -1,6 +1,8 @@
 // Arranca Vite (o usa ZIPA_URL) y abre Chrome con WebGPU vía Playwright.
 // Sin Google Chrome (p. ej. Linux sin GPU): ZIPA_CHROME_PATH=/ruta/a/chromium usa ese ejecutable con ANGLE por
-// software (SwiftShader); conviene WEBGL=1. Carga en ~45 s y corre a ~10 FPS: las pruebas de FPS fallan ahí.
+// software (SwiftShader); conviene WEBGL=1. Carga en ~45 s y corre a 1–10 FPS (dt acotado a 0,1 s: el juego va más
+// lento que el reloj), así que ahí fallan las pruebas con esperas fijas: FPS, caminar, correr, saltar, colisión con la
+// catedral y subirse, acelerar, cambiar, girar y bajarse de la moto.
 import { createServer } from 'vite';
 import { chromium } from 'playwright';
 

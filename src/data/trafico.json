@@ -72,13 +72,13 @@
     "lookahead": 32,
     "respawnMinDistance": 60,
     "junctionWaitTimeout": 5,
-    "_junctionDoc": "junctionWaitTimeout: s detenido esperando sólo el cruce (reserva en conflicto o salida llena; no cuentan el semáforo, el jugador ni el de adelante) tras los que el vehículo pide turno (nadie más reserva un conector en conflicto hasta que pase) y, si la cadena de espera cierra un ciclo, el que más lleva esperando (empate: menor id) entra ignorando reservas y salida llena (sólo frena ante el choque físico). stuckRecycle: último recurso para ciclos sólo físicos o colas tras un obstáculo que no es el jugador, y sólo si no se ve.",
+    "_junctionDoc": "junctionWaitTimeout: s detenido esperando sólo el cruce (reserva en conflicto o salida llena; no cuentan el semáforo, el jugador ni el de adelante) tras los que el vehículo pide turno (nadie más reserva un conector en conflicto hasta que pase) y, si la cadena de espera cierra un ciclo, el que más lleva esperando (empate: menor id) entra ignorando la salida llena, los turnos pedidos y la reserva de quien sigue detenido antes de su línea (que la pierde), pero no la de quien ya está dentro o entrando; mientras cruza (hasta junctionWaitTimeout s) no se da prelación a otro del mismo ciclo. stuckRecycle: último recurso para ciclos que no se resuelven así (sólo físicos o sin prelación posible) y colas tras un obstáculo que no es el jugador o tras un vehículo retenido al final del camino, sólo si no se ven. La reserva de un cruce se suelta cuando la cola del vehículo sale de él (no hay que recorrer un largo entero: en un tramo corto entre dos cruces eso trababa a dos vehículos en sentidos opuestos).",
     "stuckRecycle": 45,
     "honkAfter": 1.6,
     "bubbleRadius": 210,
     "despawnDistance": 250,
-    "despawnHardDistance": 650,
+    "despawnHardDistance": 1000,
     "spawnTriesPerStep": 80,
-    "_bubbleDoc": "Burbuja de tráfico: ~110 vehículos circulan a ≤ 210 m del jugador (≈ 1 cada 40 m de carril en el centro); reaparecen a 60–210 m sólo donde el jugador no ve. Los que pasan de despawnDistance (250 m) se reciclan sólo si no se ven; a la vista siguen hasta despawnHardDistance (= fogFar de world.json, ocultos por la niebla). Como mucho spawnTriesPerStep intentos de colocación por paso (acota el costo)."
+    "_bubbleDoc": "Burbuja de tráfico: ~110 vehículos circulan a ≤ 210 m del jugador (≈ 1 cada 40 m de carril en el centro); reaparecen a 60–210 m sólo donde el jugador no ve. Los que pasan de despawnDistance (250 m) se reciclan sólo si no se ven; a la vista siguen hasta que la niebla los oculta (la prueba de visibilidad de main.ts mide la profundidad de vista contra fogFar de world.json, como la niebla de three, no la distancia: a un lado de la pantalla se ve más lejos). despawnHardDistance es sólo un respaldo por si `visible` no tuviera en cuenta la niebla: ≥ fogFar / cos 45,7° (mitad del FOV horizontal por defecto, 60° vertical en 16:9). Como mucho spawnTriesPerStep intentos de colocación por paso (acota el costo)."
   }
 }

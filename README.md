@@ -32,13 +32,15 @@ Abre `http://localhost:5173`. Para forzar WebGL2: `http://localhost:5173/?webgl`
 
 | Control | Acción |
 |---|---|
-| Clic en la vista | Captura el ratón (Esc lo suelta). También se puede arrastrar con el botón pulsado |
+| Clic en la vista | Captura el ratón (Esc lo suelta y pausa). También se puede arrastrar con el botón pulsado |
 | Ratón | Orbitar la cámara |
 | Rueda | Distancia de la cámara (1.6–14 m) |
 | W A S D / flechas | Moverse (relativo a la cámara) |
 | Shift | Correr |
 | Espacio | Saltar |
 | E (o F) | Subirse / bajarse de la moto (aparece un aviso cuando estás cerca) |
+| P o Esc | Pausa: Reanudar, Opciones (sensibilidad, invertir Y, volumen, campo de visión, datos de depuración) y Controles. Las opciones se guardan en el navegador |
+| F3 | Mostrar u ocultar los datos de depuración |
 
 **En moto:** W acelerar · S frenar (detenido y sostenida: empujar hacia atrás, las motos no tienen reversa) ·
 A/D inclinarse para girar · Espacio freno fuerte · E bajarse (a menos de 11 km/h) · M silenciar el sonido.
@@ -50,8 +52,12 @@ que en asfalto (la superficie sale de OSM). La cámara se pone sola detrás de l
 
 ![Moto](docs/captures/moto.png)
 
-El HUD muestra FPS, backend (WebGPU/WebGL2), posición y altitud. El minimapa (norte arriba) dibuja la red
-vial real, la plaza, la catedral y el límite del área.
+Los datos de depuración (FPS, backend WebGPU/WebGL2, posición, altitud, draw calls) están ocultos: se muestran con
+F3, desde Opciones o con `?debug` en la URL. El minimapa (norte arriba) dibuja la red vial real, la plaza, la
+catedral y el límite del área.
+
+El tráfico aparece y se recicla sólo donde la cámara no lo ve (frustum, niebla y rayos de oclusión contra los
+edificios, `src/visibility.ts`); los vehículos que esperan reaparecer quedan inactivos fuera del mundo.
 
 ## Regenerar el mundo (pipeline offline)
 
@@ -119,8 +125,8 @@ origen, de modo que las distancias del juego son distancias reales sobre el terr
 ## Pruebas
 
 ```bash
-npm test             # escala (±1 m vs. OSM), física de la moto (125 cc real) y simulación de tráfico
-npm run playtest     # Chrome real vía Playwright (22 pruebas): FPS, caminar, colisiones, cámara, monumento, tráfico, moto
+npm test             # escala, moto, tráfico (bordes, visibilidad, interbloqueos, regresiones), cámara, visibilidad, opciones
+npm run playtest     # Chrome real vía Playwright (27 pruebas): FPS, caminar, colisiones, cámara, monumento, tráfico, moto, HUD, pausa
 npm run capture      # capturas: plaza N/E/S/O, aérea, catedral, torres, plaza elevada → docs/captures/
 npm run capture-moto # moto estacionada, detenida con el pie en el suelo y en curva → docs/captures/moto_*.png
 node scripts/capture.mjs CATEDRAL   # sólo una vista (N, E, S, W, AERIAL, CATEDRAL, TORRES, PLAZA, INDEPENDENCIA, INDEPENDENCIA_AEREA, NARINO, TRAFICO, CALLE)
@@ -129,7 +135,9 @@ npm run build        # comprobación de tipos + build de producción en dist/
 ```
 
 `playtest` y `capture` usan el Chrome instalado (`ZIPA_BROWSER=msedge` para usar Edge, `HEADED=1` para ver la
-ventana, `WEBGL=1` para probar el fallback WebGL2).
+ventana, `WEBGL=1` para probar el fallback WebGL2). En Linux sin Chrome ni GPU, `ZIPA_CHROME_PATH=/ruta/a/chromium`
+usa ese Chromium con render por software (SwiftShader; conviene `WEBGL=1`): carga en ~45 s y corre a 1–10 FPS, así que
+ahí fallan las pruebas con esperas fijas en tiempo real (FPS, movimiento, catedral y casi todas las de la moto).
 
 ## Estructura
 
@@ -145,9 +153,11 @@ src/               juego (TypeScript, three.js WebGPU, Rapier)
   traffic/         grafo de carriles, simulación (IDM, semáforos, reservas en cruces) y render instanciado
   vehicles/        moto: dinámica (motoDynamics.ts, probada con vitest), integración con Rapier, modelo, superficies
   audio/           sonido sintetizado del motor (WebAudio)
-  camera.ts        cámara orbital con colisión (shape cast)
-  ui/minimap.ts    minimapa
-tests/             test de escala (vitest)
+  camera.ts        cámara orbital con colisión (shape cast sólo contra el mundo: grupos de colisión en physics.ts)
+  visibility.ts    ¿ve el jugador este punto? (frustum, niebla, oclusión): dónde puede aparecer el tráfico
+  settings.ts      opciones del jugador (localStorage)
+  ui/              minimapa y menú de pausa
+tests/             pruebas (vitest): escala, moto, tráfico, cámara, visibilidad, opciones
 scripts/           Playwright: capturas y pruebas jugables
 docs/              informes, capturas y fotos de referencia (docs/referencias/)
 ```

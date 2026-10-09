@@ -66,15 +66,16 @@ describe('tráfico fuera de la vista', () => {
     expect(keptVisibleFar).toBeGreaterThan(0);  // y la regla de no reciclar lo visible
   }, 60_000);
 
-  it('a la vista no se recicla aunque pase de despawnDistance; tras la niebla (despawnHardDistance) sí', () => {
-    const sim = new TrafficSim(graph, cfg, trafico.signals, 11, 400, { x: 0, z: 0 });
+  it('a la vista no se recicla aunque pase de despawnDistance; más allá de despawnHardDistance sí', () => {
+    // (respaldo por si `visible` no tuviera en cuenta la niebla; aquí con un límite menor para que caiga dentro del mapa)
+    const sim = new TrafficSim(graph, { ...cfg, despawnHardDistance: 650 }, trafico.signals, 11, 400, { x: 0, z: 0 });
     for (let t = 0; t < 5; t += DT) sim.step(DT, [], { x: 0, z: 0 });
     const all = () => true;
     // el jugador "ve" todo: tras saltar lejos nadie desaparece (todos siguen circulando, ninguno salta)
     const far = { x: 390, z: 390 };
     const before = sim.vehicles.map((v) => ({ on: on(v), x: v.x, z: v.z }));
     for (let t = 0; t < 3; t += DT) sim.step(DT, [], far, all);
-    const hard = cfg.despawnHardDistance!;
+    const hard = sim.cfg.despawnHardDistance!;
     let vanished = 0, kept = 0, fogged = 0;
     for (const v of sim.vehicles) {
       const b = before[v.id];
@@ -84,7 +85,7 @@ describe('tráfico fuera de la vista', () => {
       if (d0 > hard + 60 && !on(v)) fogged++;
       if (on(v)) expect(Math.hypot(v.x - far.x, v.z - far.z)).toBeLessThanOrEqual(hard);
     }
-    console.log(`todo a la vista: ${kept} siguen circulando, ${vanished} desaparecieron; ${fogged} reciclados tras la niebla`);
+    console.log(`todo a la vista: ${kept} siguen circulando, ${vanished} desaparecieron; ${fogged} reciclados más allá de ${hard} m`);
     expect(vanished).toBe(0);
     expect(kept).toBeGreaterThan(50);
     expect(fogged).toBeGreaterThan(0);

@@ -67,6 +67,7 @@ body.capture #help, body.capture #hud #stats, body.capture #pause { display: non
   padding: 20px 24px 24px; background: rgba(0, 0, 0, 0.62); border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
+#pause .panel:focus { outline: none; }
 #pause h2 { grid-column: 1 / -1; margin: 0; font-weight: 800; font-size: 22px; letter-spacing: 3px; }
 #pause nav { display: flex; flex-direction: column; gap: 8px; }
 #pause button {

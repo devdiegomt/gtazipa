@@ -45,10 +45,15 @@ describe('visibilidad para el tráfico', () => {
     expect(at(-75)).toBe(false);
   });
 
-  it('más allá del final de la niebla no se ve', async () => {
+  it('más allá del final de la niebla no se ve (por profundidad de vista, como la niebla de three)', async () => {
     const { view } = await escena();
     expect(view.test(0, 10 - 600)).toBe(true);
     expect(view.test(0, 10 - FOG - 20)).toBe(false);
+    // a 40° del eje la niebla termina a FOG / cos 40° ≈ 850 m: a 800 m aún se ve (profundidad 613 m), a 900 m no (689 m)
+    const at = (deg: number, d: number) => view.test(Math.sin((deg * Math.PI) / 180) * d, 10 - Math.cos((deg * Math.PI) / 180) * d);
+    expect(at(40, 800)).toBe(true);
+    expect(at(-40, 800)).toBe(true);
+    expect(at(40, 900)).toBe(false);
   });
 
   it('un edificio (WORLD) tapa; un vehículo, el jugador o un muro invisible del borde, no', async () => {

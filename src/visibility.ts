@@ -9,7 +9,8 @@ const SAMPLES: [number, number][] = [[0, 1.2], [0, 3], [-3, 1.2], [3, 1.2]];
  * ¿Ve el jugador este punto del suelo? Para el tráfico (aparecer y reciclar sólo donde no se ve). Es visible si:
  * - cae en el frustum de la cámara con margen: `margin` m (el tráfico sólo prueba el centro del vehículo, que mide
  *   hasta 7,5 m) más `angle` rad (giros de cámara entre pasos); lo que queda detrás de la cámara no se ve;
- * - está más cerca que `range` (final de la niebla): más allá la niebla lo oculta del todo;
+ * - su profundidad de vista (a lo largo del eje de la cámara, como mide la niebla de three; no la distancia) es menor
+ *   que `range` (final de la niebla): más allá la niebla lo oculta del todo, también a un lado de la pantalla;
  * - algún rayo desde la cámara hasta el punto (1,2 m sobre el suelo; también el techo de una buseta y ±3 m a los
  *   lados) llega sin chocar con el mundo. WORLD_ONLY: vehículos, jugador y muros invisibles no tapan.
  * update() toma la cámara una vez por paso de tráfico; test() es barato fuera del frustum y lanza ≤ 4 rayos dentro.
@@ -22,6 +23,7 @@ export class ViewTest {
   private m = new THREE.Matrix4();
   private sphere = new THREE.Sphere();
   private eye = new THREE.Vector3();
+  private fwd = new THREE.Vector3();
   private ray: RAPIER.Ray;
 
   constructor(private camera: THREE.PerspectiveCamera, private phys: Physics, private heightAt: (x: number, z: number) => number,
@@ -36,14 +38,15 @@ export class ViewTest {
     this.m.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.m, c.coordinateSystem, c.reversedDepth);
     this.eye.setFromMatrixPosition(c.matrixWorld);
+    this.fwd.set(0, 0, -1).transformDirection(c.matrixWorld);
   }
 
   readonly test = (x: number, z: number): boolean => {
     this.calls++;
     const e = this.eye, y = this.heightAt(x, z);
     const dx = x - e.x, dy = y + 1.2 - e.y, dz = z - e.z;
-    const d = Math.hypot(dx, dy, dz);
-    if (d - this.margin > this.range) return false;
+    const d = Math.hypot(dx, dy, dz), f = this.fwd;
+    if (dx * f.x + dy * f.y + dz * f.z - this.margin > this.range) return false;
     this.sphere.center.set(x, y + 1.2, z);
     this.sphere.radius = this.margin + d * this.angle;
     if (!this.frustum.intersectsSphere(this.sphere)) return false;
