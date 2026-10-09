@@ -79,6 +79,45 @@
     "despawnDistance": 250,
     "despawnHardDistance": 1000,
     "spawnTriesPerStep": 80,
-    "_bubbleDoc": "Burbuja de tráfico: ~110 vehículos circulan a ≤ 210 m del jugador (≈ 1 cada 40 m de carril en el centro); reaparecen a 60–210 m sólo donde el jugador no ve. Los que pasan de despawnDistance (250 m) se reciclan sólo si no se ven; a la vista siguen hasta que la niebla los oculta (la prueba de visibilidad de main.ts mide la profundidad de vista contra fogFar de world.json, como la niebla de three, no la distancia: a un lado de la pantalla se ve más lejos). despawnHardDistance es sólo un respaldo por si `visible` no tuviera en cuenta la niebla: ≥ fogFar / cos 45,7° (mitad del FOV horizontal por defecto, 60° vertical en 16:9). Como mucho spawnTriesPerStep intentos de colocación por paso (acota el costo)."
+    "_bubbleDoc": "Burbuja de tráfico: ~110 vehículos circulan a ≤ 210 m del jugador (≈ 1 cada 40 m de carril en el centro); reaparecen a 60–210 m sólo donde el jugador no ve. Los que pasan de despawnDistance (250 m) se reciclan sólo si no se ven; a la vista siguen hasta que la niebla los oculta (la prueba de visibilidad de main.ts mide la profundidad de vista contra fogFar de world.json, como la niebla de three, no la distancia: a un lado de la pantalla se ve más lejos). despawnHardDistance es sólo un respaldo por si `visible` no tuviera en cuenta la niebla: ≥ fogFar / cos 45,7° (mitad del FOV horizontal por defecto, 60° vertical en 16:9). Como mucho spawnTriesPerStep intentos de colocación por paso (acota el costo).",
+    "filtering": {
+      "a": 2.4,
+      "s0": 1.2,
+      "T": 0.9,
+      "latSpeed": 1.3,
+      "clear": 0.17,
+      "slow": 3.5,
+      "look": 10,
+      "cruise": 1.75,
+      "maxLat": 1.9,
+      "stopFront": 0.3,
+      "zone": 7
+    },
+    "_filteringDoc": "Motos que filtran (muy colombiano, valores ESTIMADOS): IDM propio más ágil (a, s0, T). Si el de adelante en su carril (carro, taxi, camioneta o buseta) va a menos de `slow` m/s y está a menos de `look` m, la moto se corre de lado (lat, hasta `cruise` m, a `latSpeed` m/s) hacia el sardinel, entre carriles del mismo sentido o por la línea central (sin tocar una buseta del carril contrario y sólo si ninguna moto del sentido contrario la usa en esa cuadra) con `clear` m de holgura, y adelanta la fila. Vuelve al eje del carril cuando ya no hay fila o se atasca, y siempre antes del cruce (no entra desplazada ni reserva el cruce así). En el pare queda adelante de los carros: su frente a `stopFront` m del final del carril (los carros, a s0 + 0,5 m), antes de la cebra. Junto al sardinel o por la línea central no empieza a filtrar en los primeros `zone` m del carril ni entra desplazada a los últimos `zone` m (allí barren los que giran), salvo una moto por carril que avanza hasta la línea cuando el puesto de adelante está libre y el primero de la fila está detenido; entre carriles del mismo sentido llega hasta la línea. Nunca sobre el carril de parqueo.",
+    "busStops": {
+      "classes": [
+        "secondary",
+        "tertiary",
+        "residential"
+      ],
+      "spacing": 110,
+      "fromJunction": 10,
+      "fromCrossing": 9,
+      "edgeMargin": 30,
+      "prob": 0.55,
+      "use": 0.7,
+      "dwell": [
+        6,
+        15
+      ],
+      "approach": 40,
+      "seed": 2024
+    },
+    "_busStopsDoc": "Paraderos de buseta: NO hay datos reales; son ESTIMADOS, procedimentales y deterministas (semilla propia, iguales en cada partida): en el carril derecho de vías secondary/tertiary/residential, a más de fromJunction m del radio del cruce (más media buseta), a más de fromCrossing m de una cebra y de edgeMargin m del borde del mapa; por cada `spacing` m de carril, un candidato con probabilidad `prob`, separado `spacing` m de otro paradero del mismo sentido. La buseta que ve venir uno para con probabilidad `use`: se orilla desde `approach` m (direccional derecha), se detiene `dwell` s con luces de parqueo y vuelve al carril (direccional izquierda). Quien viene detrás espera (las motos la pasan). TrafficSim.busStops expone (x, z) del punto de espera en el andén para los peatones.",
+    "parking": {
+      "width": 2.3,
+      "minSpare": 2.0
+    },
+    "_parkingDoc": "Carril de parqueo (ESTIMADO): a un lado de la vía donde la holgura entre el borde de los carriles (ancho de la arista, carriles y laneWidth) y el sardinel es ≥ minSpare m (p. ej. vías de un sentido más anchas que sus carriles); allí parked.ts estaciona carros junto al sardinel y las motos que filtran y las busetas no usan esos `width` m."
   }
 }

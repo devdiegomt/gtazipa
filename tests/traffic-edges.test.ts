@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { TrafficSim, type TrafficCfg, type Vehicle } from '../src/traffic/sim';
 import type { RoadGraph } from '../src/traffic/graph';
 import trafico from '../src/data/trafico.json';
+import { stacked } from './traffic-overlap';
 
 const graph: RoadGraph = JSON.parse(readFileSync('public/world/roadgraph.json', 'utf8'));
 const cfg = trafico.traffic as unknown as TrafficCfg;
@@ -41,7 +42,7 @@ function step(sim: TrafficSim, p: P, st: Stats) {
       const b = V[j];
       if (!on(b)) continue;
       const d2 = (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
-      if (d2 < 2.25) st.stacked++;
+      if (stacked(a, b)) st.stacked++;   // (una moto que filtra puede ir al lado: cuenta la carrocería)
       if (d2 < st.minDist) st.minDist = d2;
     }
   }

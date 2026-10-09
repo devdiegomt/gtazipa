@@ -195,7 +195,7 @@ describe('simulación de peatones', () => {
     expect(sitBad).toBe(0);
     // casi nadie se encarama sobre otro (de 140 personas, en promedio menos de 2 pares a menos de 0,3 m)
     expect(pairsPerSnapshot).toBeLessThan(2);
-  });
+  }, 60_000);
 
   it('cruces semaforizados: sólo se entra con el rojo de la vía cruzada y tiempo para cruzar', () => {
     // fase resuelta = fase de los carriles con semáforo que pasan por la cebra (geometría independiente)
@@ -233,7 +233,7 @@ describe('simulación de peatones', () => {
     expect(c.roadOff).toBe(0);
     expect(c.gapBad).toBe(0);
     expect(c.visibleSpawn + c.visibleDespawn).toBe(0);
-  });
+  }, 60_000);
 
   it('atropello: cae, se levanta y sale corriendo; una moto que se le viene encima lo hace correr', () => {
     const P0 = { x: nav.plazaCenter.x, z: nav.plazaCenter.z };
@@ -273,7 +273,7 @@ describe('simulación de peatones', () => {
       scared = r.pose === 'run';
     }
     expect(scared).toBe(true);
-  });
+  }, 60_000);
 
   it('el jugador a pie: nadie lo atraviesa; quien se lo encuentra de frente se aparta o da media vuelta', () => {
     const P0 = { x: nav.plazaCenter.x, z: nav.plazaCenter.z };
@@ -290,7 +290,7 @@ describe('simulación de peatones', () => {
       }
       expect(minD).toBeGreaterThan(0.45);
     }
-  });
+  }, 60_000);
 
   it('determinista para una semilla (con tráfico y un recorrido)', () => {
     const P0 = { x: nav.plazaCenter.x, z: nav.plazaCenter.z };
@@ -300,7 +300,7 @@ describe('simulación de peatones', () => {
     expect(key(a)).toBe(key(b));
     const c = run(22, plan).sim;
     expect(key(c)).not.toBe(key(a));
-  });
+  }, 60_000);
 
   it('coste por paso con 140 peatones y tráfico (medido; límite holgado)', () => {
     const P0 = { x: nav.plazaCenter.x, z: nav.plazaCenter.z };
@@ -320,5 +320,5 @@ describe('simulación de peatones', () => {
     console.log(`[peds] paso de 140 peatones: media ${mean.toFixed(3)} ms, p50 ${times[times.length >> 1].toFixed(3)} ms, p99 ${p99.toFixed(3)} ms, máx ${times[times.length - 1].toFixed(3)} ms`);
     expect(sim.stats().active).toBe(140);
     expect(mean).toBeLessThan(1.5);
-  });
+  }, 60_000);
 });

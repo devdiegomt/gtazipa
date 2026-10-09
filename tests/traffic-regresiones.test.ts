@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { DIMS, TrafficSim, type TrafficCfg, type Vehicle, type VehicleType } from '../src/traffic/sim';
 import type { Lane, Piece, RoadGraph, REdge, RNode } from '../src/traffic/graph';
 import trafico from '../src/data/trafico.json';
+import { stripOverlap } from './traffic-overlap';
 
 const graph: RoadGraph = JSON.parse(readFileSync('public/world/roadgraph.json', 'utf8'));
 const cfg = trafico.traffic as unknown as TrafficCfg;
@@ -144,7 +145,7 @@ describe('regresiones del tráfico', () => {
         const byPiece = new Map<Piece, Vehicle[]>();
         for (const v of V) if (v.active) { const k = v.path[0]; if (!byPiece.has(k)) byPiece.set(k, []); byPiece.get(k)!.push(v); }
         for (const list of byPiece.values()) for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
-          if (Math.abs(list[i].s - list[j].s) < (list[i].length + list[j].length) / 2 - 0.3) laneOverlaps++;
+          if (stripOverlap(list[i], list[j])) laneOverlaps++;   // misma franja (no la moto que filtra al lado)
         }
       }
       console.log(`semilla ${seed}: reservas en conflicto ${conflictPairs}, superposiciones en un carril ${laneOverlaps}, ` +
