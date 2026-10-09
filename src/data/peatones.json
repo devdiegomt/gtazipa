@@ -1,0 +1,119 @@
+{
+  "_doc": "Peatones (Fase 1, «Vida»): red peatonal y simulación. NO hay datos reales de peatones, paraderos ni aforos en el área: la red se deriva de los andenes 3D, las vías OSM, la plaza y el parque; la colocación, las densidades y los comportamientos son procedurales y plausibles (ESTIMADO).",
+  "nav": {
+    "_doc": "Red peatonal (src/peds/nav.ts). Andenes: polilíneas desplazadas ±(ancho/2 + andén/2) del eje de cada vía con andén, recortadas a los triángulos caminables de la malla 'sidewalk' de roads.glb (los edificios cortan andenes). Senderos (footway/path/pedestrian/steps) por su eje. Plaza y parque: rejilla de puntos dentro del adoquín sin materas, monumento ni fuente. Cruces: todas las cebras del grafo vial + cruces de esquina estimados (sin semáforo) en los cruces de calles sin cebra.",
+    "paso": 4.0,
+    "_pasoDoc": "Separación (m) de los nodos a lo largo de andenes y senderos.",
+    "muestreo": 0.5,
+    "_muestreoDoc": "Paso (m) con que se comprueba que un tramo y su franja lateral quedan sobre superficie caminable.",
+    "enlaceExtremo": 7.0,
+    "enlaceCercano": 2.2,
+    "enlaceArea": 5.0,
+    "_enlaceDoc": "Radios (m) para unir: extremos de tramo con cualquier nodo (esquinas, tes, entradas de garaje), nodos de tramos distintos que se solapan, y bordes de la plaza/parque con andenes y senderos. Sólo si el segmento no pisa calzada.",
+    "margenFranja": 0.35,
+    "_franjaDoc": "Margen (m) entre la franja por la que se reparten lateralmente los peatones y el borde del andén (a cada lado).",
+    "rejillaPlaza": 3.0,
+    "rejillaParque": 3.5,
+    "margenBorde": 1.0,
+    "margenMatera": 1.0,
+    "margenFuente": 1.2,
+    "margenMonumento": 2.4,
+    "_margenesDoc": "Rejilla (m) de la plaza y del parque, y holguras (m) de sus nodos al borde y a los obstáculos (matera con banca: radio planter.outerRadius de plaza.json; fuente; plataforma con escalinata del monumento, que puede salir ~1,5 m de su huella OSM). ESTIMADO.",
+    "asientosPorMatera": 14,
+    "asientosFuente": 9,
+    "_asientosDoc": "Puestos por banca circular (perímetro de 25 m: ~1,8 m por persona) y sobre el borde de la fuente del parque (0,5 m de alto, como banca). ESTIMADO.",
+    "cruce": {
+      "_doc": "Cruces: extremos a ±(ancho/2 + andén/2) del eje. Los de esquina se ponen a radio del cruce + distEsquina del nodo (afuera de la caja del cruce, donde la vía es recta) y se descartan si hay otra cebra a menos de minSeparacion. Semaforizados: a menos de radioSemaforo de un semáforo del grafo.",
+      "distEsquina": 1.5,
+      "minSeparacion": 6.0,
+      "radioSemaforo": 35.0,
+      "franjaCebra": 1.2,
+      "franjaEsquina": 0.8,
+      "penalizacion": 8.0,
+      "_penalizacionDoc": "Costo extra (m) de un cruce en las rutas: se prefiere no cruzar si da casi igual."
+    },
+    "alturas": {
+      "_doc": "Altura del suelo sobre el terreno (m): el andén usa trafico.json → sidewalks.height; plaza y parque, los desplazamientos con que se dibujan (src/world/plaza.ts y parks.ts).",
+      "plaza": 0.025,
+      "parque": 0.03
+    },
+    "atractores": {
+      "_doc": "Destinos de las rutas (campos de distancia precalculados): puntos de la plaza y del parque, y nodos de calle repartidos por cada componente conexa de la red (muestreo del más lejano; en el centro histórico casi no hay andén, la red queda partida en barrios). Pesos ESTIMADOS: la plaza y el parque atraen más que una esquina cualquiera.",
+      "plaza": 3,
+      "parque": 2,
+      "nodosPorAtractor": 220,
+      "maxPorComponente": 8,
+      "minComponente": 25,
+      "radioCalle": 380,
+      "pesoPlaza": 5.0,
+      "pesoParque": 3.0
+    },
+    "densidad": {
+      "_doc": "Peso relativo de aparición por nodo de calle (ESTIMADO, no hay aforos): más gente en vías principales y cerca de la plaza (comercio del centro).",
+      "clase": { "secondary": 1.6, "tertiary": 1.3, "residential": 1.0, "unclassified": 0.8, "living_street": 1.0, "sendero": 0.5 },
+      "centro": 2.5,
+      "radioCentro": 140
+    }
+  },
+  "sim": {
+    "_doc": "Simulación (src/peds/sim.ts). Burbuja alrededor del jugador como el tráfico: los peatones aparecen y desaparecen sólo donde el jugador no ve (callback visible). Valores ESTIMADOS.",
+    "peatones": 140,
+    "radioBurbuja": 130,
+    "distDesaparicion": 150,
+    "distDesaparicionDura": 600,
+    "distMinAparicion": 12,
+    "intentosPorPaso": 24,
+    "_burbujaDoc": "Hasta `peatones` dentro de radioBurbuja m; los que pasan de distDesaparicion se reciclan sólo si no se ven (o más allá de distDesaparicionDura, respaldo). Aparecen a ≥ distMinAparicion m del jugador, con a lo sumo intentosPorPaso intentos de colocación por paso.",
+    "cupo": {
+      "_doc": "Fracción de la población que se busca tener en la plaza y en el parque cuando están dentro de la burbuja (la foto de referencia de la Plaza de los Comuneros muestra cientos de personas). ESTIMADO.",
+      "plaza": 0.32,
+      "parque": 0.14
+    },
+    "velocidad": { "min": 1.0, "max": 1.6, "correr": 3.6, "cruzar": 1.12 },
+    "_velocidadDoc": "m/s al caminar (cada peatón la suya), al huir y factor al cruzar la calzada (se apura).",
+    "grupos": {
+      "_doc": "Probabilidad de que un peatón de la calle camine en grupo (2–3 lado a lado; en andenes angostos, en fila) y de que en la plaza/parque haya corrillos de 2–4 conversando en círculo.",
+      "caminan": 0.28,
+      "corrillo": 0.4,
+      "separacion": 0.68
+    },
+    "actividad": {
+      "_doc": "Al llegar a la plaza o al parque (o al aparecer allí): sentarse en una banca, conversar, quedarse mirando, pasear o seguir de largo. Duraciones (s) [mín, máx].",
+      "sentarse": 0.5,
+      "quieto": 0.2,
+      "pasear": 0.28,
+      "seQueda": 0.6,
+      "duracionSentado": [60, 300],
+      "duracionCorrillo": [40, 200],
+      "duracionQuieto": [8, 45],
+      "duracionPaseo": [25, 90],
+      "quietoAnden": 0.05
+    },
+    "evitar": {
+      "_doc": "Evasión local con rejilla espacial: distancia deseada entre peatones, espacio personal ante el jugador a pie, y reacción a la moto/vehículos rápidos (tiempo al punto de máxima aproximación y holgura lateral).",
+      "radio": 0.28,
+      "distancia": 0.75,
+      "espacioJugador": 1.1,
+      "alerta": 1.6,
+      "holgura": 1.3,
+      "velPeligro": 3.0
+    },
+    "caida": {
+      "_doc": "Si la moto del jugador pasa por encima de un peatón a más de velMin m/s: queda en el suelo `suelo` s, luego huye corriendo `huida` s.",
+      "velMin": 3.0,
+      "suelo": [3.0, 5.0],
+      "huida": 4.0
+    },
+    "semaforo": {
+      "_doc": "Cruce semaforizado: se empieza a cruzar sólo con la fase de los vehículos de la vía cruzada en rojo y tiempo suficiente. El rojo restante se estima midiendo cuánto duró el rojo anterior (sin depender de los tiempos internos del semáforo); mientras no haya medida se usa rojoEstimado (verde 20 + amarillo 3 + 2 × todo rojo 2 de trafico.json) y si el rojo empezó antes de observarlo se espera al siguiente.",
+      "rojoEstimado": 27,
+      "margen": 1.5
+    },
+    "brecha": {
+      "_doc": "Cruce sin semáforo (aceptación de brecha): se cruza si ningún vehículo llega antes de (tiempo de cruce + margen) s. Tras `paciencia` s esperando acepta brechas más cortas y cruza corriendo (costumbre local).",
+      "margen": 1.5,
+      "alcance": 70,
+      "paciencia": 25
+    }
+  }
+}
