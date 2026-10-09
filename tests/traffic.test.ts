@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { TrafficSim, type TrafficCfg } from '../src/traffic/sim';
 import type { RoadGraph } from '../src/traffic/graph';
 import trafico from '../src/data/trafico.json';
+import { bodiesOverlap, sameStrip } from './traffic-overlap';
 
 const graph: RoadGraph = JSON.parse(readFileSync('public/world/roadgraph.json', 'utf8'));
 const cfg = trafico.traffic as unknown as TrafficCfg;
@@ -33,7 +34,7 @@ describe('tráfico', () => {
 
   it('los vehículos circulan sin atravesarse (2 minutos simulados)', () => {
     const sim = new TrafficSim(graph, cfg, trafico.signals, 2);
-    let minGap = Infinity, moving = 0, samples = 0;
+    let minGap = Infinity, minCars = Infinity, moving = 0, samples = 0;
     run(sim, 120, (s) => {
       for (let i = 0; i < s.vehicles.length; i++) {
         const a = s.vehicles[i];
@@ -41,19 +42,23 @@ describe('tráfico', () => {
         for (let j = i + 1; j < s.vehicles.length; j++) {
           const b = s.vehicles[j];
           if (!b.active) continue;
-          // mismo carril/pieza y sentido: separación entre extremos
-          if (a.path[0] === b.path[0]) {
+          // misma pieza y misma franja lateral (una moto que filtra va al lado): separación entre extremos
+          if (sameStrip(a, b)) {
             const g = Math.abs(a.s - b.s) - (a.length + b.length) / 2;
             minGap = Math.min(minGap, g);
+            // la moto que filtra se mete delante de un carro detenido casi al ras; entre carros, distancia de seguimiento
+            if (a.type !== 'moto' && b.type !== 'moto') minCars = Math.min(minCars, g);
           }
         }
         if (a.v > 1) moving++;
         samples++;
       }
     });
-    console.log(`${sim.vehicles.length} vehículos; separación mínima en el mismo carril ${minGap.toFixed(2)} m; en movimiento ${(100 * moving / samples).toFixed(0)} % del tiempo`);
+    console.log(`${sim.vehicles.length} vehículos; separación mínima en la misma franja ${minGap.toFixed(2)} m (entre carros ` +
+      `${minCars.toFixed(2)} m); en movimiento ${(100 * moving / samples).toFixed(0)} % del tiempo`);
     expect(sim.vehicles.length).toBeGreaterThan(cfg.vehicles * 0.8);
-    expect(minGap).toBeGreaterThan(0.3);
+    expect(minGap).toBeGreaterThan(0.05);
+    expect(minCars).toBeGreaterThan(0.3);
     expect(moving / samples).toBeGreaterThan(0.4);
   }, 60_000);
 
@@ -66,8 +71,9 @@ describe('tráfico', () => {
         for (let j = i + 1; j < V.length; j++) {
           const a = V[i], b = V[j];
           if (!a.active || !b.active) continue;
+          // casi encima (la mitad del más corto) y carrocerías que se tocan
           const d = Math.hypot(a.x - b.x, a.z - b.z);
-          if (d < Math.min(a.length, b.length) * 0.45 + 0.3 && d < (a.width + b.width) / 2) overlaps++;
+          if (d < Math.min(a.length, b.length) * 0.45 + 0.3 && bodiesOverlap(a, b)) overlaps++;
         }
       }
     });

@@ -201,7 +201,8 @@ export function buildPedGeometry() {
   B.loft([[1.676, 0.108, 0.118], [1.70, 0.106, 0.116]], 8, T(HEAD, DARK, 0, 0, SOMBRERO));
   B.loft([[HY + 0.035, 0.1, 0.116, 0.004], [HY + 0.09, 0.093, 0.105, 0.006], [HY + 0.132, 0.055, 0.065, 0.01]], 8, T(HEAD, HAT, 0, 0, GORRA), { top: true });
   B.box(0.15, 0.012, 0.09, 0, HY + 0.042, -0.135, T(HEAD, HAT, 0, 0, GORRA), (v) => { if (v.z < 0) v.x *= 0.85; }, 0.12);
-  B.loft([[0.84, 0.31, 0.195], [1.41, 0.31, 0.18], [1.48, 0.255, 0.152], [1.53, 0.085, 0.07]], 8, T(TORSO, RUANA, 0, 0, O_RUANA));
+  // ruana: cae de los hombros y se abre un poco hacia el ruedo (tela, no barril)
+  B.loft([[0.84, 0.335, 0.21], [1.12, 0.318, 0.198], [1.4, 0.3, 0.178], [1.47, 0.25, 0.15], [1.53, 0.085, 0.07]], 8, T(TORSO, RUANA, 0, 0, O_RUANA));
   B.box(0.27, 0.36, 0.13, 0, 1.2, 0.17, T(TORSO, PACK, 0, 0, MOCHILA));
   for (const s of [-1, 1]) B.box(0.035, 0.3, 0.012, s * 0.095, 1.27, -0.111, T(TORSO, PACK, 0, 0, MOCHILA), undefined, -0.08);
   B.loft([[0.55, 0.235, 0.19], [1.0, 0.166, 0.118]], 8, (v) => v[1] > 0.9 ? T(PELVIS, BOTTOM, 0, 0, FALDA) : T(LEG, BOTTOM, Math.sign(v[0]), 0, FALDA));
@@ -212,20 +213,22 @@ export function buildPedGeometry() {
 
 // ---------------------------------------------------------------- aspecto (determinista por `look`)
 
-const PIEL = ['#f0c9a8', '#e0b393', '#d6a27c', '#d6a27c', '#c98f68', '#c98f68', '#b97c56', '#b97c56', '#a86d48', '#94603f', '#7d4f33', '#5f3b27'];
-const PELO = ['#141110', '#141110', '#1d1612', '#2a1c14', '#2a1c14', '#3e2a1c', '#5a2a1a'];
-const CANAS = ['#8d8a86', '#b5b2ac', '#6f6b66'];
-const CHAQUETA = ['#1f2a44', '#1c1c1e', '#55585e', '#4a5233', '#4a3226', '#6b1f2a', '#a3262a', '#c08a2a', '#1f5f66', '#3c5a80',
-  '#e8e6e0', '#c9b79a', '#c66b84', '#7fa6c9', '#2f3a2c', '#7a7f87'];
-const PANTALON = ['#2c3b55', '#34466a', '#1f2738', '#2c3b55', '#1a1a1c', '#a08c68', '#5c5f66', '#4d3b2c', '#3a3d44'];
-const FALDA_C = ['#1a1a1c', '#1f2a44', '#5c5f66', '#6b1f2a', '#c9b79a', '#4a3226'];
-const RUANA_C = ['#7a7570', '#5e4636', '#d8cdb5', '#3e3b3a', '#7a2525', '#2a3550', '#8a7a62', '#4b4f3c'];
-const SOMBRERO_C = ['#d9ccb0', '#d9ccb0', '#2a2522', '#4b3b2e', '#e8e0cc'];
-const GORRA_C = ['#a3262a', '#1f2a44', '#1c1c1e', '#e8e6e0', '#e8c21a', '#2e6b3a'];
-const MOCHILA_C = ['#1c1c1e', '#1f2a44', '#55585e', '#a3262a', '#a08c68', '#1f5f66'];
-const ZAPATO = ['#1b1a19', '#1b1a19', '#4a3324', '#e6e4df', '#6b6d70', '#2b2b33'];
-const UNIFORME = ['#1d2a4d', '#5e1b24', '#1f4a33', '#1d2a4d'];
-const CHALECO_C = ['#ff6a13', '#c8e62a', '#ff8c1a'];
+// paletas sRGB (0xRRGGBB, convertidas una vez: pedLook no asigna)
+const hex = (a: string[]) => a.map((c) => parseInt(c.slice(1), 16));
+const PIEL = hex(['#f0c9a8', '#e0b393', '#d6a27c', '#d6a27c', '#c98f68', '#c98f68', '#b97c56', '#b97c56', '#a86d48', '#94603f', '#7d4f33', '#5f3b27']);
+const PELO = hex(['#141110', '#141110', '#1d1612', '#2a1c14', '#2a1c14', '#3e2a1c', '#5a2a1a']);
+const CANAS = hex(['#8d8a86', '#b5b2ac', '#6f6b66']);
+const CHAQUETA = hex(['#1f2a44', '#1c1c1e', '#55585e', '#4a5233', '#4a3226', '#6b1f2a', '#a3262a', '#c08a2a', '#1f5f66', '#3c5a80',
+  '#e8e6e0', '#c9b79a', '#c66b84', '#7fa6c9', '#2f3a2c', '#7a7f87']);
+const PANTALON = hex(['#2c3b55', '#34466a', '#1f2738', '#2c3b55', '#1a1a1c', '#a08c68', '#5c5f66', '#4d3b2c', '#3a3d44']);
+const FALDA_C = hex(['#1a1a1c', '#1f2a44', '#5c5f66', '#6b1f2a', '#c9b79a', '#4a3226']);
+const RUANA_C = hex(['#7a7570', '#5e4636', '#d8cdb5', '#3e3b3a', '#7a2525', '#2a3550', '#8a7a62', '#4b4f3c']);
+const SOMBRERO_C = hex(['#d9ccb0', '#d9ccb0', '#2a2522', '#4b3b2e', '#e8e0cc']);
+const GORRA_C = hex(['#a3262a', '#1f2a44', '#1c1c1e', '#e8e6e0', '#e8c21a', '#2e6b3a']);
+const MOCHILA_C = hex(['#1c1c1e', '#1f2a44', '#55585e', '#a3262a', '#a08c68', '#1f5f66']);
+const ZAPATO = hex(['#1b1a19', '#1b1a19', '#4a3324', '#e6e4df', '#6b6d70', '#2b2b33']);
+const UNIFORME = hex(['#1d2a4d', '#5e1b24', '#1f4a33', '#1d2a4d']);
+const CHALECO_C = hex(['#ff6a13', '#c8e62a', '#ff8c1a']);
 /** Gestos de pie / sentado: 0 brazos sueltos, 1 cruzados, 2 atrás, 3 conversa, 4 celular, 5 manos en la cintura. */
 const GESTO_P = [0.22, 0.14, 0.1, 0.3, 0.15, 0.09];
 
@@ -236,7 +239,7 @@ function rnd() {   // mulberry32 sin cierres (sin asignaciones)
   t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
-const pick = (a: string[]) => parseInt(a[Math.floor(rnd() * a.length)].slice(1), 16);
+const pick = (a: number[]) => a[Math.floor(rnd() * a.length)];
 
 export interface PedLook { colA: number[]; colB: number[]; girth: number; flags: number; seed: number; gesture: number }
 
@@ -257,7 +260,7 @@ export function pedLook(look: number, height = 1, out: PedLook = { colA: [0, 0, 
   if (falda) flags |= 1 << (FALDA - 1);
   if (falda ? rnd() < 0.85 : rnd() < 0.1) flags |= 1 << (PELO_LARGO - 1);
   let top = pick(CHAQUETA), bottom = falda ? pick(FALDA_C) : pick(PANTALON);
-  if (uniforme) { top = pick(UNIFORME); bottom = falda ? parseInt('3a3f4f', 16) + Math.floor(rnd() * 3) * 0x050505 : parseInt('4a4d55', 16); }
+  if (uniforme) { top = pick(UNIFORME); bottom = falda ? 0x3a3f4f + Math.floor(rnd() * 3) * 0x050505 : 0x4a4d55; }
   if (obrero) { top = pick(CHALECO_C); flags |= 1 << (CHALECO - 1); }
   if (campesino || (!uniforme && !obrero && rnd() < 0.07)) flags |= 1 << (O_RUANA - 1);
   if (campesino ? rnd() < 0.75 : !uniforme && rnd() < 0.04) flags |= 1 << (SOMBRERO - 1);

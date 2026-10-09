@@ -6,9 +6,10 @@
  * - senderos (footway/path/pedestrian/steps) por su eje;
  * - plaza y parque: rejilla de puntos dentro del adoquín sin materas, fuente ni monumento, más los puestos de las bancas
  *   circulares (y del borde de la fuente), mirando hacia afuera;
- * - cruces: todas las cebras del grafo vial, cruces de esquina estimados (sin semáforo) en los cruces de calles sin
- *   cebra y los de los senderos que atraviesan una calle. Son las únicas aristas sobre la calzada.
- * Las rutas usan campos de distancia precalculados hacia unos pocos destinos (atractores).
+ * - cruces: todas las cebras del grafo vial, cruces de esquina estimados en cada acceso de los cruces de calles, los de
+ *   los senderos que atraviesan una calle y, a mitad de cuadra, los que unen trozos de red que de otro modo quedan
+ *   aislados. Son las únicas aristas sobre la calzada; los que tienen un semáforo cerca son semaforizados.
+ * Las rutas usan campos de distancia precalculados hacia unos pocos destinos (atractores). Alturas del suelo: groundY().
  */
 import type { Road, WorldMeta } from '../world/types';
 import type { RoadGraph } from '../traffic/graph';
@@ -55,6 +56,8 @@ export interface Crossing {
   signalized: boolean;
   /** Arista del grafo vial cruzada. */
   roadEdge: number;
+  /** Distancia (m) desde a (curbA) o desde b (curbB) hacia el otro lado hasta el borde del andén: donde se espera. */
+  curbA: number; curbB: number;
 }
 
 export interface Seat {
@@ -261,7 +264,8 @@ export class PedNav {
   private roadGrid: Grid;
   private path: SegSet;
   private pathGrid: Grid;
-  private circles: { x: number; z: number; r: number }[] = [];
+  /** Materas y fuentes: centro, radio y holgura de los nodos de la rejilla. */
+  private circles: { x: number; z: number; r: number; m: number }[] = [];
   private rects: { x: number; z: number; ux: number; uz: number; fx: number; fz: number; hl: number; hw: number }[] = [];
   private blocked: { ring: [number, number][]; x0: number; z0: number; x1: number; z1: number }[] = [];
   private nodeGrid!: Grid;
@@ -308,10 +312,10 @@ export class PedNav {
     // ---- zonas abiertas y obstáculos
     const PL = plazaCfg.planter, PK = parquesCfg.independencia;
     this.plaza = inp.meta.plaza.paved ?? inp.meta.plaza.ring;
-    for (const p of inp.meta.plaza.planters ?? []) this.circles.push({ x: p.x, z: p.z, r: PL.outerRadius });
+    for (const p of inp.meta.plaza.planters ?? []) this.circles.push({ x: p.x, z: p.z, r: PL.outerRadius, m: cfg.margenMatera });
     for (const pk of inp.meta.parks ?? []) {
       this.parks.push(pk.ring);
-      for (const f of pk.fountains) this.circles.push({ x: f.x, z: f.z, r: Math.max(1.2, f.radius) + 0.05 });
+      for (const f of pk.fountains) this.circles.push({ x: f.x, z: f.z, r: Math.max(1.2, f.radius) + 0.05, m: cfg.margenFuente });
       for (const mo of pk.monuments) {
         this.rects.push({ x: mo.x, z: mo.z, ux: mo.axis[0], uz: mo.axis[1], fx: mo.front[0], fz: mo.front[1],
           hl: mo.length / 2 + cfg.margenMonumento, hw: mo.width / 2 + cfg.margenMonumento });
@@ -586,10 +590,15 @@ export class PedNav {
       const sep = kind === 'cebra' ? 2 : C.minSeparacion;
       if (crossings.some((o) => Math.hypot(o.cx - cx, o.cz - cz) < sep)) return false;
       const px = -dz, pz = dx, off = half + sw / 2;
-      // si el centro del andén no es caminable (andén recortado), se busca cerca a lo ancho
+      // si el centro del andén no es caminable (andén recortado), se busca cerca a lo ancho y, si no, corrido a lo largo
+      // de la vía hasta 2,4 m (el cruce queda algo oblicuo: une el muñón de andén de una esquina)
       const fit = (sx: number, sz: number, sgn: number) => {
         for (const o of [0, -0.3, 0.3, -0.6, 0.6]) {
           const x = sx + px * sgn * o, z = sz + pz * sgn * o;
+          if (this.allowed(x, z)) return [x, z];
+        }
+        for (const t of [0.8, -0.8, 1.6, -1.6, 2.4, -2.4]) for (const o of [0, -0.3]) {
+          const x = sx + dx * t + px * sgn * o, z = sz + dz * t + pz * sgn * o;
           if (this.allowed(x, z)) return [x, z];
         }
         return null;
@@ -609,7 +618,15 @@ export class PedNav {
       const id = crossings.length;
       const edge = addEdge(a, b, w > 0.05 ? w : 0, id);
       const signalized = signals.some((s) => Math.hypot(s.x - cx, s.z - cz) < C.radioSemaforo);
-      crossings.push({ id, a, b, edge, ax, az, bx, bz, cx, cz, dx, dz, half, kind, signalized, roadEdge });
+      // borde del andén visto desde cada extremo (a ≥ curbEspera m de la calzada)
+      const L = Math.hypot(bx - ax, bz - az) || 1, ux = (bx - ax) / L, uz = (bz - az) / L;
+      const curb = (sx: number, sz: number, sg: number) => {
+        let d = 0;
+        while (d + 0.1 < L / 2 && this.carriagewayDist(sx + ux * sg * (d + 0.1), sz + uz * sg * (d + 0.1)) >= C.curbEspera) d += 0.1;
+        return d;
+      };
+      crossings.push({ id, a, b, edge, ax, az, bx, bz, cx, cz, dx, dz, half, kind, signalized, roadEdge,
+        curbA: curb(ax, az, 1), curbB: curb(bx, bz, -1) });
       return true;
     };
     let zebraFail = 0;
@@ -789,7 +806,7 @@ export class PedNav {
   /** Holgura (m) del centro de un peatón a los obstáculos de la plaza y el parque (materas, fuente, monumento). */
   obstacleClearance(x: number, z: number) {
     let d = Infinity;
-    for (const c of this.circles) d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r - this.cfg.margenMatera);
+    for (const c of this.circles) d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r - c.m);
     for (const r of this.rects) {
       const dx = x - r.x, dz = z - r.z, u = Math.abs(dx * r.ux + dz * r.uz) - r.hl, v = Math.abs(dx * r.fx + dz * r.fz) - r.hw;
       d = Math.min(d, u > 0 || v > 0 ? Math.hypot(Math.max(u, 0), Math.max(v, 0)) : Math.max(u, v));
@@ -879,7 +896,8 @@ export class PedNav {
 
   /** Campo de distancias por la red (m) desde `src`, con el costo extra de los cruces. */
   distanceField(src: number) {
-    const dist = new Float32Array(this.n).fill(BIG);
+    // en Float64 (en Float32 el redondeo hace que `k0 > dist[u]` descarte nodos válidos); se guarda en Float32
+    const dist = new Float64Array(this.n).fill(BIG);
     const heap = new Heap(this.n);
     const pen = this.cfg.cruce.penalizacion;
     dist[src] = 0;
@@ -893,7 +911,7 @@ export class PedNav {
         if (d < dist[v]) { dist[v] = d; heap.push(v, d); }
       }
     }
-    return dist;
+    return new Float32Array(dist);
   }
 
   /**
