@@ -1,7 +1,7 @@
 {
   "_doc": "Peatones (Fase 1, «Vida»): red peatonal y simulación. NO hay datos reales de peatones, paraderos ni aforos en el área: la red se deriva de los andenes 3D, las vías OSM, la plaza y el parque; la colocación, las densidades y los comportamientos son procedurales y plausibles (ESTIMADO).",
   "nav": {
-    "_doc": "Red peatonal (src/peds/nav.ts). Andenes: polilíneas desplazadas ±(ancho/2 + andén/2) del eje de cada vía con andén, recortadas a los triángulos caminables de la malla 'sidewalk' de roads.glb (los edificios cortan andenes). Senderos (footway/path/pedestrian/steps) por su eje. Plaza y parque: rejilla de puntos dentro del adoquín sin materas, monumento ni fuente. Cruces: todas las cebras del grafo vial + cruces de esquina estimados (sin semáforo) en los cruces de calles sin cebra.",
+    "_doc": "Red peatonal (src/peds/nav.ts). Andenes: polilíneas desplazadas ±(ancho/2 + andén/2) del eje de cada vía con andén, recortadas a los triángulos caminables de la malla 'sidewalk' de roads.glb (los edificios cortan andenes). Senderos (footway/path/pedestrian/steps) por su eje. Plaza y parque: rejilla de puntos dentro del adoquín sin materas, monumento ni fuente, más los puestos de las bancas. Cruces (las únicas aristas sobre la calzada): todas las cebras del grafo vial que llegan a andén en ambos lados, cruces de esquina estimados en cada acceso de los cruces de calles, los de senderos que atraviesan una calle y, a mitad de cuadra, sólo donde unen trozos de red que de otro modo quedan aislados. En el centro histórico casi no hay andén en roads.glb (las fachadas llegan a la calzada estimada): la red queda partida en unos pocos barrios grandes; la plaza y el parque quedan unidos.",
     "paso": 4.0,
     "_pasoDoc": "Separación (m) de los nodos a lo largo de andenes y senderos.",
     "muestreo": 0.5,
@@ -23,12 +23,14 @@
     "asientosFuente": 9,
     "_asientosDoc": "Puestos por banca circular (perímetro de 25 m: ~1,8 m por persona) y sobre el borde de la fuente del parque (0,5 m de alto, como banca). ESTIMADO.",
     "cruce": {
-      "_doc": "Cruces: extremos a ±(ancho/2 + andén/2) del eje. Los de esquina se ponen a radio del cruce + distEsquina del nodo (afuera de la caja del cruce, donde la vía es recta) y se descartan si hay otra cebra a menos de minSeparacion. Semaforizados: a menos de radioSemaforo de un semáforo del grafo.",
+      "_doc": "Cruces: extremos a ±(ancho/2 + andén/2) del eje; si ahí no hay andén (esquina recortada) se busca a lo ancho y luego corrido hasta 2,4 m a lo largo de la vía (queda algo oblicuo). Los de esquina se ponen a radio del cruce + distEsquina del nodo (afuera de la caja del cruce, donde la vía es recta) y se descartan si hay otro cruce a menos de minSeparacion. Semaforizados (cebras o de esquina): a menos de radioSemaforo de un semáforo del grafo; PedSim los resuelve con el controlador del tráfico y la fase de los carriles de la vía cruzada. franjaCebra/franjaEsquina: media anchura (m) de la franja por la que se reparten quienes cruzan. ESTIMADO.",
       "distEsquina": 1.5,
       "minSeparacion": 6.0,
       "radioSemaforo": 35.0,
       "franjaCebra": 1.2,
       "franjaEsquina": 0.8,
+      "curbEspera": 0.35,
+      "_curbEsperaDoc": "Se espera para cruzar en el borde del andén, con el centro del cuerpo a esta distancia (m) de la calzada (la primera fila; las demás, 0,6 m más atrás).",
       "penalizacion": 8.0,
       "_penalizacionDoc": "Costo extra (m) de un cruce en las rutas: se prefiere no cruzar si da casi igual."
     },
@@ -63,7 +65,8 @@
     "distDesaparicionDura": 600,
     "distMinAparicion": 12,
     "intentosPorPaso": 24,
-    "_burbujaDoc": "Hasta `peatones` dentro de radioBurbuja m; los que pasan de distDesaparicion se reciclan sólo si no se ven (o más allá de distDesaparicionDura, respaldo). Aparecen a ≥ distMinAparicion m del jugador, con a lo sumo intentosPorPaso intentos de colocación por paso.",
+    "visiblePorPaso": 40,
+    "_burbujaDoc": "Hasta `peatones` dentro de radioBurbuja m; los que pasan de distDesaparicion se reciclan sólo si no se ven (o más allá de distDesaparicionDura, respaldo). Aparecen a ≥ distMinAparicion m del jugador, con a lo sumo intentosPorPaso intentos de colocación y visiblePorPaso consultas de visibilidad (en el juego lanzan rayos) por paso.",
     "cupo": {
       "_doc": "Fracción de la población que se busca tener en la plaza y en el parque cuando están dentro de la burbuja (la foto de referencia de la Plaza de los Comuneros muestra cientos de personas). ESTIMADO.",
       "plaza": 0.32,
@@ -71,28 +74,33 @@
     },
     "velocidad": { "min": 1.0, "max": 1.6, "correr": 3.6, "cruzar": 1.12 },
     "_velocidadDoc": "m/s al caminar (cada peatón la suya), al huir y factor al cruzar la calzada (se apura).",
+    "ninos": 0.08,
+    "_ninosDoc": "Fracción de niños o escolares (1,22–1,50 m de estatura; render.ts los viste de uniforme). ESTIMADO.",
     "grupos": {
-      "_doc": "Probabilidad de que un peatón de la calle camine en grupo (2–3 lado a lado; en andenes angostos, en fila) y de que en la plaza/parque haya corrillos de 2–4 conversando en círculo.",
+      "_doc": "Probabilidad de que un peatón de la calle camine en grupo (2–3 lado a lado; en andenes angostos, o ante alguien de frente, en fila india) y de que un grupo que llega a la plaza o al parque se quede conversando en círculo (corrillo); separacion: m entre hombros del grupo. ESTIMADO.",
       "caminan": 0.28,
-      "corrillo": 0.4,
+      "corrillo": 0.6,
       "separacion": 0.68
     },
     "actividad": {
-      "_doc": "Al llegar a la plaza o al parque (o al aparecer allí): sentarse en una banca, conversar, quedarse mirando, pasear o seguir de largo. Duraciones (s) [mín, máx].",
+      "_doc": "Al llegar a la plaza o al parque (o al aparecer allí): sentarse en una banca, conversar, quedarse mirando, pasear o seguir de largo. Duraciones (s) [mín, máx]. Al aparecer en la plaza o el parque, casi todos se sientan mientras la ocupación de sus bancas sea menor que ocupacionBancas (la foto de referencia muestra las bancas llenas); los demás: corrillo, quieto o paseando (aparicion).",
       "sentarse": 0.5,
+      "ocupacionBancas": 0.6,
+      "aparicion": { "corrillo": 0.55, "quieto": 0.25 },
       "quieto": 0.2,
       "pasear": 0.28,
       "seQueda": 0.6,
-      "duracionSentado": [60, 300],
+      "duracionSentado": [90, 420],
       "duracionCorrillo": [40, 200],
       "duracionQuieto": [8, 45],
-      "duracionPaseo": [25, 90],
-      "quietoAnden": 0.05
+      "duracionPaseo": [25, 90]
     },
     "evitar": {
-      "_doc": "Evasión local con rejilla espacial: distancia deseada entre peatones, espacio personal ante el jugador a pie, y reacción a la moto/vehículos rápidos (tiempo al punto de máxima aproximación y holgura lateral).",
+      "_doc": "Evasión local con rejilla espacial: distancia deseada entre peatones, espacio personal ante el jugador a pie, y reacción a la moto/vehículos rápidos (tiempo al punto de máxima aproximación y holgura lateral). De frente en un paso angosto se da un paso al lado (pasoLado m, fuera de la franja, sólo si el punto queda en el andén a ≥ 0,25 m de la calzada); un grupo que encuentra a alguien de frente se pone en fila india; un corrillo se rodea como un todo; al llegar de la calzada, quienes esperan en el borde abren paso. Si aun así quedan trabados `trabado` s (en la calzada, 0,8 s) se apretujan y pasan; nunca a través del jugador: si les tapa el paso más de 3 s, dan media vuelta. ESTIMADO.",
       "radio": 0.28,
       "distancia": 0.75,
+      "pasoLado": 0.45,
+      "trabado": 2.5,
       "espacioJugador": 1.1,
       "alerta": 1.6,
       "holgura": 1.3,
@@ -110,7 +118,7 @@
       "margen": 1.5
     },
     "brecha": {
-      "_doc": "Cruce sin semáforo (aceptación de brecha): se cruza si ningún vehículo llega antes de (tiempo de cruce + margen) s. Tras `paciencia` s esperando acepta brechas más cortas y cruza corriendo (costumbre local).",
+      "_doc": "Cruce sin semáforo (aceptación de brecha, por carril): se cruza si ningún vehículo (a menos de `alcance` m) ocupa la línea del cruce mientras el peatón pasa por su carril, con `margen` s de holgura antes y después; se puede pasar detrás de quien ya cruza el carril lejano. Tras `paciencia` s esperando acepta brechas más cortas (0,3 s) y cruza corriendo (costumbre local). Los vehículos ceden a quien ya está en la calzada (obstaclesForTraffic).",
       "margen": 1.5,
       "alcance": 70,
       "paciencia": 25
