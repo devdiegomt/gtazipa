@@ -1,6 +1,7 @@
 // Pruebas jugables automáticas en navegador real: caminar, correr, saltar, colisión con edificios,
 // cámara sin atravesar paredes, HUD, pausa y FPS. Uso: node scripts/playtest.mjs
-// (Linux sin Chrome ni GPU: ZIPA_CHROME_PATH=/ruta/a/chromium WEBGL=1; ahí las pruebas de FPS fallan, es lo esperado.)
+// (Linux sin Chrome ni GPU: ZIPA_CHROME_PATH=/ruta/a/chromium WEBGL=1; ahí, a 1–10 FPS, fallan como es de esperar las
+// 11 pruebas con esperas fijas en tiempo real: FPS, movimiento, catedral y casi todas las de la moto. Ver harness.mjs.)
 import { readFileSync } from 'node:fs';
 import { startGame } from './harness.mjs';
 

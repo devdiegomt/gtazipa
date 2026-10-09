@@ -45,6 +45,7 @@ export class PauseState {
 export class PauseMenu {
   readonly state: PauseState;
   private root = document.getElementById('pause')!;
+  private panel = this.root.querySelector<HTMLElement>('.panel')!;
   private resumeBtn = this.root.querySelector<HTMLButtonElement>('[data-act="resume"]')!;
   private inputs: Record<'sensitivity' | 'volume' | 'fov' | 'invertY' | 'debugHud', HTMLInputElement>;
 
@@ -92,7 +93,9 @@ export class PauseMenu {
     this.root.hidden = !paused;
     if (paused) {
       if (document.pointerLockElement === this.canvas) { this.state.willUnlock(); document.exitPointerLock(); }
-      this.resumeBtn.focus({ preventScroll: true });
+      // foco en el panel, no en Reanudar: Espacio (saltar / freno fuerte) o Enter no reanudan sin querer; Tab llega
+      // a los botones
+      this.panel.focus({ preventScroll: true });
     } else {
       (document.activeElement as HTMLElement | null)?.blur?.();
       if (gesture && document.pointerLockElement !== this.canvas) this.canvas.requestPointerLock?.()?.catch?.(() => {});
