@@ -4,9 +4,13 @@
  * por eso el sonido "tuc-tuc" sale de los armónicos. Se suman viento y derrape (ruido filtrado) y golpes.
  * El AudioContext se crea con el primer gesto del usuario (requisito de los navegadores). M = silenciar.
  * En pausa el contexto se suspende (motor, viento y pitos callan y el tiempo de audio se detiene).
+ * El contexto y la salida general (volumen de las opciones y silencio) se comparten con el audio de la ciudad
+ * (`context`, `output`, `onReady`): todo el sonido del juego pasa por el mismo bus y el mismo compresor.
  */
 export class MotoAudio {
   private ctx: AudioContext | null = null;
+  /** Salida general: volumen de las opciones × silencio (M). */
+  private out!: GainNode;
   private master!: GainNode;
   private engGain!: GainNode;
   private osc!: OscillatorNode;
@@ -22,6 +26,7 @@ export class MotoAudio {
   private paused = false;
   private running = false;
   private startT = 0;
+  private readyCbs: ((ctx: AudioContext, out: GainNode) => void)[] = [];
 
   constructor(private volume = 0.5) {
     const unlock = () => this.ensure();
@@ -30,17 +35,28 @@ export class MotoAudio {
     addEventListener('keydown', (e) => { if (e.code === 'KeyM' && !this.paused) this.toggleMute(); });
   }
 
-  private get gain() { return this.muted ? 0 : this.volume * this.level; }
+  private get outGain() { return this.muted ? 0 : this.level; }
+
+  /** Contexto compartido (null hasta el primer gesto del usuario). */
+  get context(): AudioContext | null { return this.ctx; }
+  /** Bus de salida general (volumen de las opciones, silencio, compresor); null hasta que exista el contexto. */
+  get output(): GainNode | null { return this.ctx ? this.out : null; }
+  /** Llama a cb cuando el contexto exista (en seguida si ya existe). */
+  onReady(cb: (ctx: AudioContext, out: GainNode) => void) {
+    if (this.ctx) cb(this.ctx, this.out); else this.readyCbs.push(cb);
+  }
 
   private ensure() {
     if (this.ctx) { if (this.ctx.state === 'suspended' && !this.paused) void this.ctx.resume(); return; }
     let ctx: AudioContext;
     try { ctx = new AudioContext(); } catch { return; }
     this.ctx = ctx;
+    this.out = ctx.createGain();
+    this.out.gain.value = this.outGain;
     this.master = ctx.createGain();
-    this.master.gain.value = this.gain;
+    this.master.gain.value = this.volume;
     const comp = ctx.createDynamicsCompressor();
-    this.master.connect(comp).connect(ctx.destination);
+    this.master.connect(this.out).connect(comp).connect(ctx.destination);
 
     // Pulso de escape: espectro tipo diente de sierra con armónicos pares reforzados (golpe del monocilíndrico)
     const N = 40;
@@ -91,17 +107,18 @@ export class MotoAudio {
     this.osc.start();
     this.sub.start();
     if (this.paused) void ctx.suspend();
+    for (const cb of this.readyCbs.splice(0)) cb(ctx, this.out);
   }
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.ctx) this.master.gain.setTargetAtTime(this.gain, this.ctx.currentTime, 0.05);
+    if (this.ctx) this.out.gain.setTargetAtTime(this.outGain, this.ctx.currentTime, 0.05);
   }
 
   /** Volumen general (opciones), 0..1. */
   setLevel(v: number) {
     this.level = v;
-    if (this.ctx) this.master.gain.setTargetAtTime(this.gain, this.ctx.currentTime, 0.05);
+    if (this.ctx) this.out.gain.setTargetAtTime(this.outGain, this.ctx.currentTime, 0.05);
   }
 
   /** Pausa: suspende el contexto (y no lo reanuda ningún gesto hasta quitarla). */

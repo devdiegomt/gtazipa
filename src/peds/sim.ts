@@ -522,6 +522,16 @@ export class PedSim {
     const lt = a.latT < -lim ? -lim : a.latT > lim ? lim : a.latT;
     const dl = lt - a.lat, rate = (a.fleeT > 0 ? 1.6 : 0.7) * dt;
     a.lat += dl > rate ? rate : dl < -rate ? -rate : dl;
+    // cruce con semáforo: se vuelve a mirar al pisar la calzada (si la gente en el andén lo demoró y ya no alcanza a
+    // pasar con este rojo, espera el siguiente en el borde)
+    if (a.cross >= 0 && this.crossCtrl[a.cross] >= 0 && a.fleeT <= 0) {
+      const cr = this.nav.crossings[a.cross], curb = a.from === cr.a ? cr.curbA : cr.curbB;
+      if (a.s <= curb && a.s + a.v * dt > curb && !this.canCross(a)) {
+        this.startWait(a);
+        a.latB = a.wl > 0 ? a.lat / a.wl : 0;
+        return;
+      }
+    }
     a.s += a.v * dt;
     // desde la cola: no pisa la calzada hasta quedar dentro de la franja del cruce
     if (a.cross >= 0 && (a.lat > a.wl + 0.05 || a.lat < -a.wl - 0.05)) {
@@ -840,24 +850,27 @@ export class PedSim {
       a.cross = c;
       a.waitT = 0;
       a.latT = a.lat = (this.rand() * 2 - 1) * a.wl * 0.7;
-      if (!this.canCross(a)) {
-        a.mode = M_WAIT; a.v = 0;
-        // un grupo que no cabe junto en el borde se separa para esperar: cada uno busca su puesto (o hace cola)
-        if (this.waitSlot(a) >= 2 && a.fol.length) {
-          while (a.fol.length) {
-            const f = this.A[a.fol[a.fol.length - 1]];
-            this.release(f);
-            f.mode = M_WAIT; f.v = 0; f.waitT = 0; f.cross = c;
-            f.pax = a.pax; f.paz = a.paz; f.pdx = a.pdx; f.pdz = a.pdz; f.plen = a.plen; f.pwl = a.pwl;
-            f.latT = f.lat;
-            this.waitSlot(f);
-            f.latB = f.wl > 0 ? f.lat / f.wl : 0;
-          }
-          this.waitSlot(a);
-        }
-      }
+      if (!this.canCross(a)) this.startWait(a);
       // al cruzar conserva el lateral con que llegó (o el de su puesto de espera)
       a.latB = a.wl > 0 ? a.lat / a.wl : 0;
+    }
+  }
+
+  /** Se detiene a esperar en el borde del cruce (puesto de espera; un grupo que no cabe junto se separa). */
+  private startWait(a: Agent) {
+    a.mode = M_WAIT; a.v = 0; a.waitT = 0;
+    // un grupo que no cabe junto en el borde se separa para esperar: cada uno busca su puesto (o hace cola)
+    if (this.waitSlot(a) >= 2 && a.fol.length) {
+      while (a.fol.length) {
+        const f = this.A[a.fol[a.fol.length - 1]];
+        this.release(f);
+        f.mode = M_WAIT; f.v = 0; f.waitT = 0; f.cross = a.cross;
+        f.pax = a.pax; f.paz = a.paz; f.pdx = a.pdx; f.pdz = a.pdz; f.plen = a.plen; f.pwl = a.pwl;
+        f.latT = f.lat;
+        this.waitSlot(f);
+        f.latB = f.wl > 0 ? f.lat / f.wl : 0;
+      }
+      this.waitSlot(a);
     }
   }
 

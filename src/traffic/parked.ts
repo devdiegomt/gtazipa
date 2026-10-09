@@ -39,8 +39,12 @@ function lateralOf(poly: Poly, side: number, x: number, z: number) {
 
 const CORNERS = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
 
+/**
+ * Puestos ocupados, deterministas para la misma configuración. `avoid`: además de cebras y paraderos, puntos que dejar
+ * libres a `r` m (más media huella), p. ej. los cruces peatonales de la red de peatones y la moto del jugador.
+ */
 export function layoutParked(graph: RoadGraph, sim: Pick<TrafficSim, 'parkR' | 'parkL' | 'spareR' | 'spareL' | 'busStops' | 'areaHalf'>,
-  cfg: ParkedCfg): Parked[] {
+  cfg: ParkedCfg, avoid: readonly { x: number; z: number; r: number }[] = []): Parked[] {
   const r = rng(cfg.seed), out: Parked[] = [];
   const radius = new Map(graph.nodes.map((n) => [n.id, n.radius]));
   const cross = (graph.crossings ?? []) as { x: number; z: number }[];
@@ -53,7 +57,8 @@ export function layoutParked(graph: RoadGraph, sim: Pick<TrafficSim, 'parkR' | '
   const clear = (x: number, z: number, half: number) =>
     Math.abs(x) < sim.areaHalf - cfg.edgeMargin && Math.abs(z) < sim.areaHalf - cfg.edgeMargin &&
     !cross.some((c) => Math.hypot(c.x - x, c.z - z) < cfg.fromCrossing + half) &&
-    !sim.busStops.some((b) => Math.hypot(b.bx - x, b.bz - z) < cfg.fromBusStop + half);
+    !sim.busStops.some((b) => Math.hypot(b.bx - x, b.bz - z) < cfg.fromBusStop + half) &&
+    !avoid.some((o) => Math.hypot(o.x - x, o.z - z) < o.r + half);
   for (const e of [...graph.edges].sort((m, n) => m.id - n.id)) {
     for (const side of [1, -1] as const) {
       if (!(side === 1 ? sim.parkR[e.id] : sim.parkL[e.id])) continue;

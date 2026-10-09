@@ -123,7 +123,8 @@ function lampMaterial() {
   const tail = k.lessThan(0.5), head = k.greaterThan(2.5);
   const on = select(tail, s.x, select(k.lessThan(1.5), s.y, select(head, s.w, s.z)));
   const off = select(tail, rgb('#4d0d0f'), select(head, rgb('#c9c4b4'), rgb('#6a4a14')));
-  const lit = select(tail, rgb('#ff2016').mul(2.4), select(head, rgb('#fff4d6').mul(2.0), rgb('#ffa418').mul(2.4)));
+  // con ACES un rojo muy intenso se va a naranja: intensidad moderada para que el freno siga rojo y la direccional ámbar
+  const lit = select(tail, rgb('#ff1208').mul(1.5), select(head, rgb('#fff4d6').mul(1.6), rgb('#ff9410').mul(1.5)));
   const m = new THREE.MeshBasicNodeMaterial();
   m.colorNode = mix(off, lit, on);
   return m;
