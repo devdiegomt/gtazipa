@@ -116,8 +116,37 @@
     "_busStopsDoc": "Paraderos de buseta: NO hay datos reales; son ESTIMADOS, procedimentales y deterministas (semilla propia, iguales en cada partida): en el carril derecho de vías secondary/tertiary/residential, a más de fromJunction m del radio del cruce (más media buseta), a más de fromCrossing m de una cebra y de edgeMargin m del borde del mapa; por cada `spacing` m de carril, un candidato con probabilidad `prob`, separado `spacing` m de otro paradero del mismo sentido. La buseta que ve venir uno para con probabilidad `use`: se orilla desde `approach` m (direccional derecha), se detiene `dwell` s con luces de parqueo y vuelve al carril (direccional izquierda). Quien viene detrás espera (las motos la pasan). TrafficSim.busStops expone (x, z) del punto de espera en el andén para los peatones.",
     "parking": {
       "width": 2.3,
-      "minSpare": 2.0
+      "minSpare": 2.0,
+      "oneLane": [
+        "residential"
+      ]
     },
-    "_parkingDoc": "Carril de parqueo (ESTIMADO): a un lado de la vía donde la holgura entre el borde de los carriles (ancho de la arista, carriles y laneWidth) y el sardinel es ≥ minSpare m (p. ej. vías de un sentido más anchas que sus carriles); allí parked.ts estaciona carros junto al sardinel y las motos que filtran y las busetas no usan esos `width` m."
+    "_parkingDoc": "Carril de parqueo (ESTIMADO): a un lado de la vía donde la holgura entre el borde de los carriles (ancho de la arista, carriles y laneWidth) y el sardinel es ≥ minSpare m; allí parked.ts estaciona carros junto al sardinel y las motos que filtran y las busetas no usan esos `width` m. Las calles residenciales de un sentido del centro (6,5 m; el pipeline les estima 2 carriles por ancho) circulan, como en Zipaquirá, por un solo carril junto al sardinel derecho (oneLane) con carros parqueados al lado izquierdo.",
+    "parked": {
+      "fill": 0.75,
+      "curbGap": 0.3,
+      "gap": [
+        0.7,
+        2.2
+      ],
+      "fromJunction": 6,
+      "fromCrossing": 7,
+      "fromBusStop": 13,
+      "edgeMargin": 8,
+      "mix": {
+        "carro": 0.48,
+        "taxi": 0.14,
+        "camioneta": 0.2,
+        "moto": 0.12
+      },
+      "motoGroup": [
+        2,
+        5
+      ],
+      "motoAngle": 60,
+      "motoSpacing": 0.95,
+      "seed": 4049
+    },
+    "_parkedDoc": "Vehículos parqueados (ESTIMADO, procedimental y determinista, semilla propia): sólo en los carriles de parqueo (parking), en fila junto al sardinel a curbGap m, separados gap m y en el sentido del tráfico de ese lado; ninguno a menos de fromJunction m del radio de un cruce, fromCrossing m de una cebra, fromBusStop m de un paradero ni edgeMargin m del borde del mapa. Cada puesto está ocupado con probabilidad fill; mix reparte carros, taxis, camionetas y grupos de motos (motoGroup motos en diagonal, motoAngle° respecto al sardinel con la rueda trasera hacia él, cada motoSpacing m, inclinadas sobre el gato). Estáticos: colisionan con el jugador y su moto (grupo VEHICLE)."
   }
 }

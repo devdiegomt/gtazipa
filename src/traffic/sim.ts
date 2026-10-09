@@ -43,8 +43,11 @@ export interface BusStopCfg {
   /** Segundos detenida [mín, máx] y distancia a la que empieza a orillarse. */
   dwell: [number, number]; approach: number; seed: number;
 }
-/** Carril de parqueo: ancho reservado junto al sardinel y holgura mínima entre carriles y sardinel para tenerlo. */
-export interface ParkingCfg { width: number; minSpare: number }
+/**
+ * Carril de parqueo: ancho reservado junto al sardinel y holgura mínima entre carriles y sardinel para tenerlo; las vías
+ * de un sentido de las clases `oneLane` circulan por un solo carril (junto al sardinel derecho) y parquean al otro lado.
+ */
+export interface ParkingCfg { width: number; minSpare: number; oneLane?: string[] }
 
 export interface TrafficCfg {
   vehicles: number; mix: Record<string, number>; idm: { a: number; b: number; s0: number; T: number; delta: number };
@@ -244,6 +247,10 @@ export class TrafficSim {
 
   constructor(g: RoadGraph, readonly cfg: TrafficCfg, readonly sig: SignalCfg, seed = 7, readonly areaHalf = 400,
     center: { x: number; z: number } | null = null) {
+    // vías de un sentido con un solo carril de circulación y el resto para parquear (parking.oneLane)
+    const one = cfg.parking?.oneLane ?? [];
+    if (one.length) g = { ...g, edges: g.edges.map((e) => (e.fw === 0) === (e.bw === 0) || !one.includes(e.highway) ? e
+      : { ...e, fw: Math.min(e.fw, 1), bw: Math.min(e.bw, 1) }) };
     this.lg = new LaneGraph(g);
     this.rand = rng(seed);
     this.rand2 = rng((seed * 2654435761 + 977) >>> 0);
@@ -1063,21 +1070,27 @@ export class TrafficSim {
     if (v.latT === 0 && Math.abs(v.lat) < 0.3) this.releaseCentre(v);
   }
 
-  /** Direccional: maniobra lateral (orillarse, filtrar, volver) o giro del próximo cruce a < BLINK_DIST m del frente. */
+  /**
+   * Direccional: orillarse al paradero, giro del próximo cruce a < BLINK_DIST m del frente (manda sobre la maniobra
+   * lateral: la moto que vuelve al eje antes de girar a la izquierda no pone la derecha, ni la buseta que va a un
+   * paradero después del giro) o maniobra lateral.
+   */
   private updateBlink(v: Vehicle) {
-    let b: -1 | 0 | 1 = 0;
+    let b: -1 | 0 | 1 = 0, turn: -1 | 0 | 1 = 0;
     const dl = v.latT - v.lat;
-    if (v.hazard) b = 0;
-    else if (v.stop >= 0 || dl > 0.2) b = 1;
-    else if (dl < -0.2) b = -1;
-    else {
-      let d = -v.s - v.length / 2;
-      for (const p of v.path) {
-        if (p.kind === 'conn') { if (d <= BLINK_DIST) b = p.turn === 'R' ? 1 : p.turn === 'S' ? 0 : -1; break; }
-        d += p.poly.length;
-        if (d > BLINK_DIST) break;
-      }
+    let d = -v.s - v.length / 2;
+    for (const p of v.path) {
+      if (p.kind === 'conn') { if (d <= BLINK_DIST) turn = p.turn === 'R' ? 1 : p.turn === 'S' ? 0 : -1; break; }
+      d += p.poly.length;
+      if (d > BLINK_DIST) break;
     }
+    // orillarse manda si el paradero está antes del cruce (en el carril actual); si está después, primero el giro
+    const p0 = v.path[0], stopHere = v.stop >= 0 && p0.kind === 'lane' && this.busStops[v.stop].lane === p0.id;
+    if (v.hazard) b = 0;
+    else if (stopHere || (v.stop >= 0 && !turn)) b = 1;
+    else if (turn) b = turn;
+    else if (dl > 0.2) b = 1;
+    else if (dl < -0.2) b = -1;
     v.blink = b;
   }
 

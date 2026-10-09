@@ -1,8 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { uv, float, vec2, fract, floor, step, max, hash, mix, mx_noise_float, positionWorld, vec3 } from 'three/tsl';
+import { uv, float, vec2, fract, floor, step, max, hash, mix, mx_noise_float, positionWorld, vec3, attribute, select } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import type { TrafficSim, VehicleType } from './sim';
+import { blinkOn, brakeLit, type TrafficSim, type Vehicle, type VehicleType } from './sim';
 import type { Lane } from './graph';
 import { envTexture } from '../world/env';
 import trafico from '../data/trafico.json';
@@ -11,7 +11,8 @@ const rgb = (hex: string) => { const c = new THREE.Color(hex); return vec3(c.r, 
 
 // ---------------------------------------------------------------- modelos de vehículos (low-poly)
 
-type Part = { geo: THREE.BufferGeometry; color?: string };   // sin color = pintura (toma el color de la instancia)
+// sin color = pintura (toma el color de la instancia); rider = conductor (no va en las motos parqueadas)
+type Part = { geo: THREE.BufferGeometry; color?: string; rider?: boolean };
 
 function box(w: number, h: number, l: number, x: number, y: number, z: number, color?: string, rx = 0): Part {
   const g = new THREE.BoxGeometry(w, h, l);
@@ -57,16 +58,29 @@ const MODELS: Record<VehicleType, { parts: Part[]; height: number }> = {
   moto: { height: 1.4, parts: [
     wheel(0, -0.65, 0.3, 0.1), wheel(0, 0.65, 0.3, 0.1), box(0.22, 0.28, 1.0, 0, 0.62, 0.05),
     box(0.3, 0.22, 0.5, 0, 0.88, -0.2), box(0.26, 0.08, 0.55, 0, 0.88, 0.32, '#151515'),
-    box(0.4, 0.55, 0.28, 0, 1.25, 0.2, '#2b3542'), { geo: new THREE.SphereGeometry(0.15, 10, 8).translate(0, 1.66, 0.12), color: '#e8e4dc' },
-    box(0.5, 0.05, 0.05, 0, 1.05, -0.45, '#222'), box(0.12, 0.1, 0.05, 0, 0.92, -0.62, LIGHT)] },
+    { ...box(0.4, 0.55, 0.28, 0, 1.25, 0.2, '#2b3542'), rider: true },
+    { geo: new THREE.SphereGeometry(0.15, 10, 8).translate(0, 1.66, 0.12), color: '#e8e4dc', rider: true },
+    box(0.5, 0.05, 0.05, 0, 1.05, -0.45, '#222'), box(0.12, 0.1, 0.05, 0, 0.92, -0.62, LIGHT), box(0.12, 0.07, 0.04, 0, 0.8, 0.57, TAIL)] },
 };
 
-function buildModel(type: VehicleType) {
-  const { parts } = MODELS[type];
-  const prep = (p: Part) => {
-    let g = p.geo.index ? p.geo.toNonIndexed() : p.geo;
+/** Tipo de luz (atributo aLamp de la malla de luces): trasera/freno, direccional izquierda, derecha y farola. */
+const L_TAIL = 0, L_LEFT = 1, L_RIGHT = 2, L_HEAD = 3;
+
+/**
+ * Pintura, partes de color fijo y luces de un modelo. Las luces (LIGHT, TAIL) van aparte con su tipo en aLamp, más una
+ * direccional ámbar junto a cada una: hacia afuera si cabe en la carrocería, si no debajo; con una sola luz centrada
+ * (moto), a ambos lados.
+ */
+export function buildModel(type: VehicleType, rider = true) {
+  const parts = MODELS[type].parts.filter((p) => rider || !p.rider);
+  const clean = (geo: THREE.BufferGeometry) => {
+    let g = geo.index ? geo.toNonIndexed() : geo;
     g = g.clone();
     for (const k of Object.keys(g.attributes)) if (!['position', 'normal'].includes(k)) g.deleteAttribute(k);
+    return g;
+  };
+  const prep = (p: Part) => {
+    const g = clean(p.geo);
     const c = new THREE.Color(p.color ?? '#ffffff');
     const n = g.getAttribute('position').count;
     const col = new Float32Array(n * 3);
@@ -74,9 +88,79 @@ function buildModel(type: VehicleType) {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     return g;
   };
+  const isLamp = (p: Part) => p.color === LIGHT || p.color === TAIL;
   const paint = mergeGeometries(parts.filter((p) => !p.color).map(prep))!;
-  const fixed = mergeGeometries(parts.filter((p) => p.color).map(prep))!;
-  return { paint, fixed };
+  const fixed = mergeGeometries(parts.filter((p) => p.color && !isLamp(p)).map(prep))!;
+  paint.computeBoundingBox();
+  const halfW = paint.boundingBox!.max.x;
+  const lamps: THREE.BufferGeometry[] = [];
+  const lamp = (geo: THREE.BufferGeometry, kind: number) => {
+    const g = clean(geo);
+    g.setAttribute('aLamp', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count).fill(kind), 1));
+    lamps.push(g);
+  };
+  const c = new THREE.Vector3(), sz = new THREE.Vector3();
+  for (const p of parts.filter(isLamp)) {
+    p.geo.computeBoundingBox();
+    p.geo.boundingBox!.getCenter(c); p.geo.boundingBox!.getSize(sz);
+    lamp(p.geo, p.color === LIGHT ? L_HEAD : L_TAIL);
+    const sides = Math.abs(c.x) < 0.01 ? [-1, 1] : [Math.sign(c.x)];
+    for (const sd of sides) {
+      let x = c.x + sd * (sz.x / 2 + 0.06), y = c.y;
+      if (sides.length === 2) x = sd * (sz.x / 2 + 0.08);
+      else if (Math.abs(c.x) + sz.x / 2 + 0.12 > halfW) { x = c.x; y = c.y - sz.y / 2 - 0.06; }
+      lamp(new THREE.BoxGeometry(0.1, Math.min(0.1, sz.y), sz.z).translate(x, y, c.z), sd < 0 ? L_LEFT : L_RIGHT);
+    }
+  }
+  return { paint, fixed, lamps: mergeGeometries(lamps)! };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type N = any;   // nodos TSL (los tipos de @types/three no siguen bien las mezclas float/vec)
+/** Luces sin sombreado: apagadas, el color del vidrio; encendidas, intensas (iLamp = freno, izquierda, derecha, farola). */
+function lampMaterial() {
+  const k = attribute('aLamp', 'float') as N, s = attribute('iLamp', 'vec4') as N;
+  const tail = k.lessThan(0.5), head = k.greaterThan(2.5);
+  const on = select(tail, s.x, select(k.lessThan(1.5), s.y, select(head, s.w, s.z)));
+  const off = select(tail, rgb('#4d0d0f'), select(head, rgb('#c9c4b4'), rgb('#6a4a14')));
+  const lit = select(tail, rgb('#ff2016').mul(2.4), select(head, rgb('#fff4d6').mul(2.0), rgb('#ffa418').mul(2.4)));
+  const m = new THREE.MeshBasicNodeMaterial();
+  m.colorNode = mix(off, lit, on);
+  return m;
+}
+
+/**
+ * Estado de las luces de un vehículo en `out[i·4 …]`: freno (luz de posición tenue con las farolas encendidas),
+ * direccional izquierda y derecha (también como luces de parqueo) y farolas. Parpadeo con el reloj de la simulación:
+ * se congela en pausa. Las motos andan siempre con la farola encendida (obligatorio en Colombia).
+ */
+export function lampState(v: Vehicle, time: number, night: number, out: Float32Array, i: number) {
+  const head = v.type === 'moto' ? 1 : night, b = blinkOn(time, v.id);
+  out[i * 4] = brakeLit(v) ? 1 : head * 0.35;
+  out[i * 4 + 1] = (v.blink === -1 || v.hazard) && b ? 1 : 0;
+  out[i * 4 + 2] = (v.blink === 1 || v.hazard) && b ? 1 : 0;
+  out[i * 4 + 3] = head;
+}
+
+/**
+ * Mallas instanciadas de un tipo de vehículo (pintura, partes fijas y luces) para `count` instancias; `seeds[i]` elige
+ * el color de la pintura. `rider` = false quita el conductor (motos parqueadas). El estado de las luces va en `lampState`.
+ */
+export function vehicleMeshes(type: VehicleType, count: number, seeds: ArrayLike<number>, rider = true) {
+  const env = envTexture();
+  const { paint, fixed, lamps } = buildModel(type, rider);
+  const state = new Float32Array(count * 4);
+  const attr = new THREE.InstancedBufferAttribute(state, 4).setUsage(THREE.DynamicDrawUsage);
+  lamps.setAttribute('iLamp', attr);
+  const pm = new THREE.InstancedMesh(paint, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45, envMap: env }), count);
+  const fm = new THREE.InstancedMesh(fixed, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.2, envMap: env }), count);
+  const lm = new THREE.InstancedMesh(lamps, lampMaterial(), count);
+  const col = new THREE.Color(), pal = PALETTES[type];
+  for (let i = 0; i < count; i++) pm.setColorAt(i, col.set(pal[(seeds[i] * 7919) % pal.length]));
+  // sólo la carrocería proyecta sombra (luces, vidrios y molduras no se notan en el mapa de sombras)
+  pm.castShadow = true;
+  pm.receiveShadow = fm.receiveShadow = true;
+  return { paint: pm, fixed: fm, lamps: lm, state, attr };
 }
 
 const PALETTES: Record<VehicleType, string[]> = {
@@ -91,7 +175,9 @@ const PALETTES: Record<VehicleType, string[]> = {
 
 export class TrafficView {
   readonly group = new THREE.Group();
-  private meshes = new Map<VehicleType, { paint: THREE.InstancedMesh; fixed: THREE.InstancedMesh; ids: number[] }>();
+  /** Farolas de carros, taxis, busetas y camionetas (0 de día, 1 de noche); las motos siempre las llevan encendidas. */
+  night = 0;
+  private meshes = new Map<VehicleType, ReturnType<typeof vehicleMeshes> & { ids: number[] }>();
   private m4 = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -103,23 +189,12 @@ export class TrafficView {
 
   constructor(private sim: TrafficSim, private heightAt: (x: number, z: number) => number) {
     this.group.name = 'trafico';
-    const env = envTexture();
     const byType = new Map<VehicleType, number[]>();
     for (const v of sim.vehicles) { if (!byType.has(v.type)) byType.set(v.type, []); byType.get(v.type)!.push(v.id); }
     for (const [type, ids] of byType) {
-      const { paint, fixed } = buildModel(type);
-      const pm = new THREE.InstancedMesh(paint, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45, envMap: env }), ids.length);
-      const fm = new THREE.InstancedMesh(fixed, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.2, envMap: env }), ids.length);
-      const col = new THREE.Color();
-      ids.forEach((id, i) => {
-        const pal = PALETTES[type];
-        col.set(pal[(id * 7919) % pal.length]);
-        pm.setColorAt(i, col);
-      });
-      // sólo la carrocería proyecta sombra (luces, vidrios y molduras no se notan en el mapa de sombras)
-      pm.castShadow = true;
-      for (const m of [pm, fm]) { m.receiveShadow = true; m.frustumCulled = false; this.group.add(m); }
-      this.meshes.set(type, { paint: pm, fixed: fm, ids });
+      const m = vehicleMeshes(type, ids.length, ids);
+      for (const k of [m.paint, m.fixed, m.lamps]) { k.frustumCulled = false; this.group.add(k); }
+      this.meshes.set(type, { ...m, ids });
     }
   }
 
@@ -135,20 +210,25 @@ export class TrafficView {
   }
 
   update(t: number) {
-    const V = this.sim.vehicles;
-    for (const { paint, fixed, ids } of this.meshes.values()) {
+    const V = this.sim.vehicles, time = this.sim.time;
+    for (const { paint, fixed, lamps, state, attr, ids } of this.meshes.values()) {
       for (let i = 0; i < ids.length; i++) {
+        const v = V[ids[i]];
         // inactivo (esperando reaparecer fuera de la vista): escala cero
-        if (!V[ids[i]].active) { paint.setMatrixAt(i, this.hidden); fixed.setMatrixAt(i, this.hidden); continue; }
+        if (!v.active) { paint.setMatrixAt(i, this.hidden); fixed.setMatrixAt(i, this.hidden); lamps.setMatrixAt(i, this.hidden); continue; }
         const p = this.pose(ids[i], t, this.p);
         this.e.set(p.pitch, p.yaw, 0);
         this.q.setFromEuler(this.e);
         this.m4.compose(this.pos.set(p.x, p.y, p.z), this.q, this.one);
         paint.setMatrixAt(i, this.m4);
         fixed.setMatrixAt(i, this.m4);
+        lamps.setMatrixAt(i, this.m4);
+        lampState(v, time, this.night, state, i);
       }
       paint.instanceMatrix.needsUpdate = true;
       fixed.instanceMatrix.needsUpdate = true;
+      lamps.instanceMatrix.needsUpdate = true;
+      attr.needsUpdate = true;
     }
   }
 
@@ -257,7 +337,7 @@ export async function loadRoads(url: string) {
     return m;
   };
   const mats: Record<string, THREE.Material> = { sidewalk: swMat, curb: curbMat, mark_white: mark('#ecebe4'), mark_yellow: mark('#e2b419') };
-  const verts: number[] = [], inds: number[] = [];
+  const verts: number[] = [], inds: number[] = [], walk: number[] = [];
   gltf.scene.traverse((o) => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
@@ -271,7 +351,9 @@ export async function loadRoads(url: string) {
       const base = verts.length / 3;
       for (let i = 0; i < pos.count; i++) verts.push(pos.getX(i), pos.getY(i), pos.getZ(i));
       for (let i = 0; i < idx.count; i++) inds.push(base + idx.getX(i));
+      // cara superior del andén en 2D para la red peatonal (como sidewalkTriangles de las pruebas)
+      if (name === 'sidewalk') for (let i = 0; i < idx.count; i++) walk.push(pos.getX(idx.getX(i)), pos.getZ(idx.getX(i)));
     }
   });
-  return { group: gltf.scene, collider: { vertices: new Float32Array(verts), indices: new Uint32Array(inds) } };
+  return { group: gltf.scene, collider: { vertices: new Float32Array(verts), indices: new Uint32Array(inds) }, walkTris: new Float32Array(walk) };
 }
