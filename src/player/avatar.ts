@@ -161,6 +161,9 @@ export class Avatar {
     this.solve(this.armR, t.gripR);
   }
 
+  /** Fase del ciclo de paso (rad, sólo lectura): un pie apoya en π/2 + kπ (piernas más abiertas). Para los pasos. */
+  get walkPhase() { return this.phase; }
+
   /** speed en m/s, grounded, dt en s. */
   animate(speed: number, grounded: boolean, vy: number, dt: number) {
     const stride = speed > 4 ? 1.25 : 1.6; // m por medio ciclo

@@ -318,7 +318,7 @@ describe('simulación de peatones', () => {
     times.sort((x, y) => x - y);
     const mean = times.reduce((s, v) => s + v, 0) / times.length, p99 = times[Math.floor(times.length * 0.99)];
     console.log(`[peds] paso de 140 peatones: media ${mean.toFixed(3)} ms, p50 ${times[times.length >> 1].toFixed(3)} ms, p99 ${p99.toFixed(3)} ms, máx ${times[times.length - 1].toFixed(3)} ms`);
-    expect(sim.stats().active).toBe(140);
+    expect(sim.stats().active).toBe(peatones.sim.peatones);
     expect(mean).toBeLessThan(1.5);
   }, 60_000);
 });

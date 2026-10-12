@@ -59,7 +59,7 @@
   },
   "sim": {
     "_doc": "Simulación (src/peds/sim.ts). Burbuja alrededor del jugador como el tráfico: los peatones aparecen y desaparecen sólo donde el jugador no ve (callback visible). Valores ESTIMADOS.",
-    "peatones": 140,
+    "peatones": 220,
     "radioBurbuja": 130,
     "distDesaparicion": 150,
     "distDesaparicionDura": 600,
@@ -69,7 +69,7 @@
     "_burbujaDoc": "Hasta `peatones` dentro de radioBurbuja m; los que pasan de distDesaparicion se reciclan sólo si no se ven (o más allá de distDesaparicionDura, respaldo). Aparecen a ≥ distMinAparicion m del jugador, con a lo sumo intentosPorPaso intentos de colocación y visiblePorPaso consultas de visibilidad (en el juego lanzan rayos) por paso.",
     "cupo": {
       "_doc": "Fracción de la población que se busca tener en la plaza y en el parque cuando están dentro de la burbuja (la foto de referencia de la Plaza de los Comuneros muestra cientos de personas). ESTIMADO.",
-      "plaza": 0.32,
+      "plaza": 0.4,
       "parque": 0.14
     },
     "velocidad": { "min": 1.0, "max": 1.6, "correr": 3.6, "cruzar": 1.12 },

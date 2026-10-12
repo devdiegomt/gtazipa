@@ -18,6 +18,10 @@ import { buildPark, type ParkResult } from './world/parks';
 import parksCfg from './data/parques.json';
 import { TrafficSim, type TrafficCfg, type Obstacle, type Visibility } from './traffic/sim';
 import { TrafficView, SignalsView, loadRoads } from './traffic/render';
+import { layoutParked, parkedColliders, ParkedView, type ParkedCfg } from './traffic/parked';
+import { PedNav, S_PARK, S_PLAZA, S_SIDEWALK } from './peds/nav';
+import { PedSim, type PedHazard } from './peds/sim';
+import { PedView } from './peds/render';
 import type { RoadGraph } from './traffic/graph';
 import traficoCfg from './data/trafico.json';
 import { MotoController, parkingSpot } from './vehicles/moto';
@@ -25,6 +29,8 @@ import { MotoModel } from './vehicles/motoModel';
 import { atmosphere } from './vehicles/motoDynamics';
 import { SurfaceMap } from './vehicles/surface';
 import { MotoAudio } from './audio/motoAudio';
+import { CityAudio, ZoneMap, belfryPosition, countNear } from './audio/ambient';
+import catedralCfg from './data/catedral.json';
 import vehiclesCfg from './data/vehicles.json';
 import type { BuildingMeta, Prop, Road, WorldMeta } from './world/types';
 import worldCfg from './data/world.json';
@@ -162,6 +168,26 @@ async function main() {
     collider.setEnabled(v.active);
     return { body, collider, h, on: v.active };
   });
+  // ---------------- peatones: red sobre andenes, cebras, plaza y parque; simulación en burbuja alrededor del jugador
+  // (aparecen y se van sólo donde no se ven, como el tráfico) y un único InstancedMesh animado en el shader
+  const nav = new PedNav({ roads, graph: roadGraph, meta, walk: roadsMesh.walkTris, heightAt: (x, z) => hf.heightAt(x, z) });
+  const peds = new PedSim(nav, traffic, undefined, 23, { x: spawn.x, z: spawn.z });
+  const pedView = new PedView(peds.peds);
+  scene.add(pedView.group);
+  // el jugador a pie o en moto: lo esquivan, se asustan y (en moto) los puede atropellar
+  const pedHazards: PedHazard[] = [{ x: spawn.x, z: spawn.z, vx: 0, vz: 0, r: 0.35, kind: 'player' }];
+
+  // ---------------- vehículos parqueados (estáticos, colisionan como el tráfico): fuera de los cruces peatonales y del
+  // puesto de la moto del jugador
+  const parked = layoutParked(roadGraph, traffic, traficoCfg.traffic.parked as unknown as ParkedCfg,
+    [...nav.crossings.map((c) => ({ x: c.cx, z: c.cz, r: traficoCfg.traffic.parked.fromCrossing })), { x: spot.x, z: spot.z, r: 5 }]);
+  const parkedView = new ParkedView(parked, (x, z) => hf.heightAt(x, z));
+  scene.add(parkedView.group);
+  for (const c of parkedColliders(parked, (x, z) => hf.heightAt(x, z))) {
+    phys.world.createCollider(R.ColliderDesc.cuboid(c.hx, c.hy, c.hz).setTranslation(c.x, c.y, c.z)
+      .setRotation({ x: 0, y: Math.sin(c.yaw / 2), z: 0, w: Math.cos(c.yaw / 2) }).setCollisionGroups(groups(GROUP.VEHICLE)));
+  }
+
   const kPos = { x: 0, y: 0, z: 0 }, kRot = { x: 0, y: 0, z: 0, w: 1 };
   /** Lleva los cuerpos cinemáticos a la pose del tráfico; al aparecer o reciclarse se teletransportan (sin barrido). */
   const syncVehicleBodies = () => traffic.vehicles.forEach((v, i) => {
@@ -181,6 +207,18 @@ async function main() {
   const motoModel = new MotoModel();
   scene.add(motoModel.root);
   const motoAudio = new MotoAudio(MC.audio.volume);
+  // sonido de la ciudad (ambiente por zona, motores, pasos, pitos, campanas): comparte contexto y bus con la moto; el
+  // oyente es la cámara
+  const city = new CityAudio(motoAudio, cat?.model ? { bell: belfryPosition(cat.model, catedralCfg.towers) } : {});
+  const zones = new ZoneMap(meta.plaza.ring, (meta.parks ?? []).map((p) => p.ring));
+  const listener = { x: 0, y: 0, z: 0, fx: 0, fz: -1 };
+  const cityScene = { vehicles: traffic.vehicles, crowd: 0, plaza: 0, park: 0, street: 1 };
+  const camDir = new THREE.Vector3();
+  /** Superficie bajo los pies para el sonido de los pasos (andén, plaza, parque o la de la vía / predio). */
+  const footSurface = (x: number, z: number) => {
+    const s = nav.surface(x, z);
+    return s === S_SIDEWALK ? 'sidewalk' : s === S_PLAZA ? 'plaza' : s === S_PARK ? 'paving_stones' : surfaces.at(x, z);
+  };
   const anchorPos = (o: THREE.Object3D) => o.getWorldPosition(new THREE.Vector3());
   let shake = 0;
   let lastImpactSeen = 0;
@@ -275,6 +313,7 @@ async function main() {
   );
   // puntos del minimapa reutilizados (sólo vehículos activos)
   const vehDots = traffic.vehicles.map((v) => ({ x: 0, z: 0, color: v.type === 'taxi' ? '#ffd21a' : '#e8e8e8' }));
+  const pedLine = () => { const s = peds.stats(); return `${s.active} (plaza ${s.plaza}, sentados ${s.sit}, cruzando ${s.cross})`; };
   const dots: typeof vehDots = [];
 
   // El tráfico aparece y se recicla sólo donde la cámara no ve (frustum + niebla + rayo de oclusión).
@@ -447,8 +486,20 @@ async function main() {
         // tras un salto del jugador (teleport) la cámara sigue en el sitio viejo hasta el próximo render: en ese paso
         // todo cuenta como visible (nada aparece ni se recicla donde el jugador pueda estar mirando ya)
         const lag = followCam && Math.hypot(camera.position.x - pp.x, camera.position.z - pp.z) > orbit.distance + 8;
-        traffic.step(2 * FIXED, obstacles, pp, lag ? allVisible : view.test);
+        const vis = lag ? allVisible : view.test;
+        // los peatones que van por la calzada (cruzando, o caídos en ella) también detienen al tráfico
+        for (const o of peds.obstaclesForTraffic()) obstacles.push(o);
+        traffic.step(2 * FIXED, obstacles, pp, vis);
         syncVehicleBodies();
+        const hz = pedHazards[0];
+        if (riding) {
+          hz.x = moto.curr.x; hz.z = moto.curr.z; hz.r = 0.9; hz.kind = 'moto';
+          hz.vx = -Math.sin(moto.yaw) * moto.speed; hz.vz = -Math.cos(moto.yaw) * moto.speed;
+        } else {
+          hz.x = character.curr.x; hz.z = character.curr.z; hz.r = 0.35; hz.kind = 'player';
+          hz.vx = character.vel.x; hz.vz = character.vel.z;
+        }
+        peds.step(2 * FIXED, pp, pedHazards, vis);
       }
       phys.world.step();
       acc -= FIXED;
@@ -461,13 +512,14 @@ async function main() {
     motoModel.root.position.set(mp.x + (mc.x - mp.x) * t, mp.y + (mc.y - mp.y) * t, mp.z + (mc.z - mp.z) * t);
     motoModel.root.rotation.y = mp.yaw + dyaw * t;
     motoModel.pose(moto.wheelSpin, moto.steerAngle, moto.lean, moto.terrainPitch, moto.suspPitch, !riding);
-    trafficView.update(((trafficPhase ? 0 : 1) * FIXED + acc) / (2 * FIXED));
+    const tSim = ((trafficPhase ? 0 : 1) * FIXED + acc) / (2 * FIXED);
+    trafficView.update(tSim);
+    pedView.update(tSim);
     signalsView.update();
     // cada pito una sola vez, sin importar los FPS (step() los acumula; drainHonks() los entrega y vacía)
-    for (const hv of traffic.drainHonks()) {
-      const d = Math.hypot(hv.x - feet.x, hv.z - feet.z);
-      motoAudio.honk(Math.max(0, 1 - d / 70));
-    }
+    for (const hv of traffic.drainHonks()) city.honk(hv.x, hv.z, hv.type);
+    // atropello de un peatón con la moto: golpe (el peatón cae, se levanta y sale corriendo)
+    if (peds.drainFalls().length && riding) motoAudio.impact(3);
     if (riding) motoModel.updateDash(Math.abs(moto.speed) * 3.6, moto.dyn.gear + 1, moto.dyn.rpm / 9500);
     if (riding) {
       feet.copy(motoModel.root.position);
@@ -500,6 +552,8 @@ async function main() {
       avatar.root.position.copy(feet);
       avatar.root.rotation.y = heading;
       avatar.animate(speed, character.grounded, character.vel.y, gdt);
+      const step = paused ? 0 : city.stepEvent(avatar.walkPhase, speed, character.grounded, gdt);
+      if (step) city.footstep(footSurface(feet.x, feet.z), input.run, step === 2);
     }
     if (CAPTURE === 'AERIAL') {
       camera.position.set(-260, 330, 330);
@@ -525,6 +579,12 @@ async function main() {
       }
     }
     sky.position.copy(camera.position);
+    camera.getWorldDirection(camDir);
+    listener.x = camera.position.x; listener.y = camera.position.y; listener.z = camera.position.z;
+    listener.fx = camDir.x; listener.fz = camDir.z;
+    zones.at(listener.x, listener.z, cityScene);
+    cityScene.crowd = countNear(peds.peds, listener.x, listener.z, 35);
+    city.update(gdt, listener, cityScene, paused);
 
     // La sombra sigue al jugador (cascada única de ±shadowExtent m).
     const shadowCenter = CAPTURE === 'AERIAL' ? new THREE.Vector3() : fixedView ? fixedView.target.clone().setY(feet.y) : feet;
@@ -591,6 +651,7 @@ async function main() {
         `${fps.toFixed(0)} FPS · ${backend} · res ${(pixelRatio * 100).toFixed(0)} %${paused ? ' · en pausa' : ''}\n` +
         `x ${feet.x.toFixed(1)}  z ${feet.z.toFixed(1)}  y ${feet.y.toFixed(1)} m (${(meta.origin.elevation + feet.y).toFixed(0)} m s.n.m.)\n` +
         `${speed.toFixed(1)} m/s ${character.grounded ? '' : '· en el aire'}\n` +
+        `vehículos ${active} · parqueados ${parked.length} · peatones ${pedLine()}\n` +
         `draw calls ${info.drawCalls ?? info.calls ?? '?'} · tris ${(info.triangles / 1000).toFixed(0)}k`;
     }
     if (frames === 3) loading.classList.add('hidden');
@@ -601,11 +662,14 @@ async function main() {
       motoGear: moto.dyn.gear + 1, motoRpm: moto.dyn.rpm, motoSurface: moto.surface, motoSlip: moto.dyn.slip,
       vehicles: active, vehiclesTotal: traffic.vehicles.length, signals: traffic.controllers.length,
       trafficAvgSpeed: vSum / Math.max(1, active), trafficStopped: stopped, nearestVehicle: nearest,
-      paused, settings: { ...settings },
+      paused, settings: { ...settings }, parked: parked.length,
+      pedStats: () => peds.stats(),
+      pedList: () => peds.peds.filter((q) => q.active).map((q) => ({ id: q.id, x: q.x, z: q.z, y: q.y, pose: q.pose, speed: q.speed })),
       buildings: bmeta.length, drawCalls: buildings.drawCalls, buildingTriangles: buildings.triangles,
       teleport: (x: number, z: number) => character.teleport(x, hf.heightAt(x, z) + 0.05, z),
       setView: (yaw: number, pitch: number, dist: number) => { orbit.yaw = yaw; orbit.pitch = pitch; orbit.distance = dist; },
-      debug: () => ({ phys, buildings, character, moto, motoModel, motoAudio, avatar, scene, traffic, view, orbit, camera }),
+      debug: () => ({ phys, buildings, character, moto, motoModel, motoAudio, avatar, scene, traffic, view, orbit, camera,
+        peds, nav, pedView, parked, trafficView, city }),
       vehicleList: () => traffic.vehicles.filter((v) => v.active).map((v) => ({ id: v.id, type: v.type, x: v.x, z: v.z, v: v.v,
         tx: v.tx, tz: v.tz, lane: v.path[0].kind === 'lane' ? v.path[0].id : -1 })),
       setPaused: (p: boolean) => pause.set(p),
