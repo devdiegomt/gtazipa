@@ -10,6 +10,7 @@ y `docs/INFORME.md`.
 **Fase 2 — plaza y catedral:** ver [docs/INFORME_CATEDRAL.md](docs/INFORME_CATEDRAL.md).
 **Parque de la Independencia:** ver [docs/INFORME_PARQUES.md](docs/INFORME_PARQUES.md).
 **Vías, semáforos y tráfico:** ver [docs/INFORME_TRAFICO.md](docs/INFORME_TRAFICO.md).
+**Fase 1 — vida (peatones, tráfico con vida, sonido de la ciudad):** ver [docs/INFORME_VIDA.md](docs/INFORME_VIDA.md).
 
 ![Catedral: foto vs. juego](docs/captures/comparacion_catedral.png)
 
@@ -58,6 +59,14 @@ catedral y el límite del área.
 
 El tráfico aparece y se recicla sólo donde la cámara no lo ve (frustum, niebla y rayos de oclusión contra los
 edificios, `src/visibility.ts`); los vehículos que esperan reaparecer quedan inactivos fuera del mundo.
+
+La ciudad está habitada: ~220 peatones caminan por los andenes, esperan en las cebras al rojo de los carros, se
+sientan en las bancas de las materas de la plaza y conversan en corrillos (aparecen y se van, como el tráfico, sólo
+donde no se ven); las motos filtran entre los carros y quedan adelante en el semáforo, las busetas paran en paraderos
+con luces de parqueo, todos ponen direccional antes de girar y encienden la luz de freno; las calles residenciales de
+un sentido tienen carros y motos parqueados a un lado. El sonido es sintetizado: murmullo y voces en la plaza, pájaros
+en el parque, motores espacializados, pasos según la superficie, pitos y las campanas de la Catedral (también callan
+en la pausa y siguen el volumen de Opciones y la tecla M).
 
 ## Regenerar el mundo (pipeline offline)
 
@@ -111,7 +120,10 @@ No hay que tocar la lógica para cambiar estos valores. Tras editarlos, ejecuta 
 - `catedral.json`: dimensiones de la catedral (cuerpos, torres, vanos, cúpulas, cubiertas, colores), con su fuente.
 - `plaza.json`: rasante de la plaza, adoquín, materas con banca circular, palmas.
 - `trafico.json`: carriles, velocidades por clase, regla de semáforos estimados y tiempos del ciclo, señalización,
-  andenes, número y mezcla de vehículos, parámetros IDM, burbuja de tráfico.
+  andenes, número y mezcla de vehículos, parámetros IDM, burbuja de tráfico, motos que filtran, paraderos de buseta,
+  carril de parqueo (calles de un carril con parqueo) y vehículos parqueados.
+- `peatones.json`: red peatonal (separación de nodos, enlaces, cruces, bancas, alturas) y simulación (número de
+  peatones, burbuja, cupo de la plaza y el parque, velocidades, grupos, actividades, semáforos, brechas, caídas).
 - `parques.json`: otros parques modelados (Parque de la Independencia): ids OSM de sus elementos, pavimento,
   plataforma y escalinata, estatua, banderas y fuente, con la fuente de cada dato.
 
@@ -125,7 +137,8 @@ origen, de modo que las distancias del juego son distancias reales sobre el terr
 ## Pruebas
 
 ```bash
-npm test             # escala, moto, tráfico (bordes, visibilidad, interbloqueos, regresiones), cámara, visibilidad, opciones
+npm test             # escala, moto, tráfico (bordes, visibilidad, interbloqueos, regresiones, motos que filtran, paraderos,
+                     # direccionales, luces, parqueados), peatones (red, simulación, dibujo), audio, cámara, visibilidad, opciones
 npm run playtest     # Chrome real vía Playwright (27 pruebas): FPS, caminar, colisiones, cámara, monumento, tráfico, moto, HUD, pausa
 npm run capture      # capturas: plaza N/E/S/O, aérea, catedral, torres, plaza elevada → docs/captures/
 npm run capture-moto # moto estacionada, detenida con el pie en el suelo y en curva → docs/captures/moto_*.png
@@ -150,14 +163,18 @@ src/               juego (TypeScript, three.js WebGPU, Rapier)
   data/            valores ajustables (JSON)
   world/           terreno, edificios (fachadas TSL), catedral, plaza (materas instanciadas), parques, props, cielo
   player/          personaje (KinematicCharacterController) y avatar procedural
-  traffic/         grafo de carriles, simulación (IDM, semáforos, reservas en cruces) y render instanciado
+  traffic/         grafo de carriles, simulación (IDM, semáforos, reservas en cruces, motos que filtran, paraderos,
+                   direccionales), render instanciado con luces y vehículos parqueados (parked.ts)
+  peds/            peatones: red sobre andenes, cebras, plaza y parque (nav.ts), simulación (sim.ts) y dibujo
+                   instanciado animado en el shader (render.ts, gait.ts)
   vehicles/        moto: dinámica (motoDynamics.ts, probada con vitest), integración con Rapier, modelo, superficies
-  audio/           sonido sintetizado del motor (WebAudio)
+  audio/           sonido sintetizado (WebAudio): motor de la moto, ambiente de la ciudad, motores del tráfico,
+                   pasos, pitos y campanas (ambient.ts, mix.ts puro y probado, synth.ts)
   camera.ts        cámara orbital con colisión (shape cast sólo contra el mundo: grupos de colisión en physics.ts)
   visibility.ts    ¿ve el jugador este punto? (frustum, niebla, oclusión): dónde puede aparecer el tráfico
   settings.ts      opciones del jugador (localStorage)
   ui/              minimapa y menú de pausa
-tests/             pruebas (vitest): escala, moto, tráfico, cámara, visibilidad, opciones
+tests/             pruebas (vitest): escala, moto, tráfico, peatones, audio, cámara, visibilidad, opciones
 scripts/           Playwright: capturas y pruebas jugables
 docs/              informes, capturas y fotos de referencia (docs/referencias/)
 ```
